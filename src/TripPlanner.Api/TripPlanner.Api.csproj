@@ -4,9 +4,14 @@
     <ProjectReference Include="..\TripPlanner.Core.Application\TripPlanner.Core.Application.csproj" />
     <ProjectReference Include="..\TripPlanner.Core.Contracts\TripPlanner.Core.Contracts.csproj" />
     <ProjectReference Include="..\TripPlanner.Adapters.Persistence.InMemory\TripPlanner.Adapters.Persistence.InMemory.csproj" />
+    <ProjectReference Include="..\TripPlanner.Adapters.Persistence.Ef\TripPlanner.Adapters.Persistence.Ef.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.0">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
     <PackageReference Include="Swashbuckle.AspNetCore" Version="9.0.4" />
   </ItemGroup>
 

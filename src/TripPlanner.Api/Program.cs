@@ -2,6 +2,7 @@ using TripPlanner.Adapters.Persistence.InMemory;
 using TripPlanner.Core.Application.Application.Trips;
 using TripPlanner.Core.Contracts.Contracts.V1.Trips;
 using TripPlanner.Core.Contracts.Common;
+using TripPlanner.Adapters.Persistence.Ef;
 
 var builder = WebApplication.CreateBuilder(args);
 var services = builder.Services;
@@ -13,8 +14,10 @@ services.AddSwaggerGen();
 services.AddScoped<CreateTripHandler>();
 services.AddScoped<ListTripsHandler>();
 
-// In-memory persistence (swap later for EF)
-services.AddInMemoryPersistence();
+// Swap InMemory → EF:
+var cs = builder.Configuration.GetConnectionString("Default") ?? "Data Source=tripplanner.db";
+services.AddEfPersistence(cs);
+// services.AddInMemoryPersistence();
 
 var app = builder.Build();
 

@@ -23,4 +23,11 @@ public sealed class Trip
     }
 
     public void AddParticipant(UserId user) => _participants.Add(user);
+    
+    public static Trip Rehydrate(TripId id, string name, UserId organizerId, IEnumerable<UserId> participants)
+    {
+        var t = new Trip(id, name, organizerId);
+        t._participants.UnionWith(participants);
+        return t;
+    }
 }
