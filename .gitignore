@@ -28,7 +28,7 @@ TestResults/
 *.log
 *.temp
 *.tmp
-*.db
+*.db*
 
 # OS junk
 .DS_Store

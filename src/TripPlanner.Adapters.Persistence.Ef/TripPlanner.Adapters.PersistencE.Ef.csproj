@@ -6,6 +6,7 @@
         <ImplicitUsings>enable</ImplicitUsings>
     </PropertyGroup>
     <ItemGroup>
+        <ProjectReference Include="..\..\tests\TripPlanner.Tests.Domain\TripPlanner.Tests.Domain.csproj" />
         <ProjectReference Include="..\TripPlanner.Core.Application\TripPlanner.Core.Application.csproj" />
     </ItemGroup>
     <ItemGroup>

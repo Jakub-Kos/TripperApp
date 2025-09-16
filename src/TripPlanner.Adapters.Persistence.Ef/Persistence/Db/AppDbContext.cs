@@ -8,32 +8,66 @@ public sealed class AppDbContext : DbContext
     public DbSet<TripRecord> Trips => Set<TripRecord>();
     public DbSet<TripParticipantRecord> TripParticipants => Set<TripParticipantRecord>();
 
+    public DbSet<DateOptionRecord> DateOptions => Set<DateOptionRecord>();
+    public DbSet<DateVoteRecord> DateVotes => Set<DateVoteRecord>();
+    
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
     protected override void OnModelCreating(ModelBuilder b)
     {
-        // Trip
-        b.Entity<TripRecord>(e =>
-        {
-            e.ToTable("Trips");
-            e.HasKey(x => x.TripId);
-            e.Property(x => x.Name).IsRequired().HasMaxLength(200);
-            e.Property(x => x.OrganizerId).IsRequired();
+        b.Entity<TripRecord>(ConfigureTrip);
+        b.Entity<TripParticipantRecord>(ConfigureParticipant);
+        b.Entity<DateOptionRecord>(ConfigureDateOption);
+        b.Entity<DateVoteRecord>(ConfigureDateVote);
+    }
+    private static void ConfigureTrip(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<TripRecord> e)
+    {
+        e.ToTable("Trips");
+        e.HasKey(x => x.TripId);
+        e.Property(x => x.Name).IsRequired().HasMaxLength(200);
+        e.Property(x => x.OrganizerId).IsRequired();
 
-            e.HasMany(x => x.Participants)
-                .WithOne()
-                .HasForeignKey(x => x.TripId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
+        e.HasMany(x => x.Participants)
+            .WithOne()
+            .HasForeignKey(x => x.TripId)
+            .OnDelete(DeleteBehavior.Cascade);
 
-        // Participant
-        b.Entity<TripParticipantRecord>(e =>
-        {
-            e.ToTable("TripParticipants");
-            e.HasKey(x => x.Id);
-            e.Property(x => x.TripId).IsRequired();
-            e.Property(x => x.UserId).IsRequired();
-            e.HasIndex(x => new { x.TripId, x.UserId }).IsUnique(); // no dup participants
-        });
+        e.HasMany(x => x.DateOptions)
+            .WithOne()
+            .HasForeignKey(x => x.TripId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+
+    private static void ConfigureParticipant(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<TripParticipantRecord> e)
+    {
+        e.ToTable("TripParticipants");
+        e.HasKey(x => x.Id);
+        e.Property(x => x.TripId).IsRequired();
+        e.Property(x => x.UserId).IsRequired();
+        e.HasIndex(x => new { x.TripId, x.UserId }).IsUnique();
+    }
+
+    private static void ConfigureDateOption(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<DateOptionRecord> e)
+    {
+        e.ToTable("DateOptions");
+        e.HasKey(x => x.DateOptionId);
+        e.Property(x => x.DateIso).IsRequired();
+        e.Property(x => x.TripId).IsRequired();
+
+        e.HasIndex(x => new { x.TripId, x.DateIso }).IsUnique();
+
+        e.HasMany(x => x.Votes)
+            .WithOne()
+            .HasForeignKey(x => x.DateOptionId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+
+    private static void ConfigureDateVote(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<DateVoteRecord> e)
+    {
+        e.ToTable("DateVotes");
+        e.HasKey(x => x.Id);
+        e.Property(x => x.DateOptionId).IsRequired();
+        e.Property(x => x.UserId).IsRequired();
+        e.HasIndex(x => new { x.DateOptionId, x.UserId }).IsUnique(); // one vote per user per option
     }
 }
