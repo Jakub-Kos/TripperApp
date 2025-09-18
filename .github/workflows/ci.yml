@@ -137,7 +137,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.IMAGE_NAME }}
+          images: ${{ steps.vars.outputs.image }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
