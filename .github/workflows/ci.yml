@@ -114,12 +114,15 @@ jobs:
       contents: read
       packages: write
       id-token: write
-    env:
-      IMAGE_NAME: ${{ toLower(format('ghcr.io/{0}/tripplanner-api', github.repository)) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Compute image name (lowercase owner)
+        id: vars
+        shell: bash
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/tripplanner-api" >> "$GITHUB_OUTPUT"
+          
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -158,13 +161,17 @@ jobs:
     permissions:
       contents: read
     env:
-      IMAGE_NAME: ${{ toLower(format('ghcr.io/{0}/tripplanner-api', github.repository)) }}
       # choose the tag to deploy: latest on main, else the exact SHA tag
       DEPLOY_TAG: ${{ github.ref_name == 'main' && 'latest' || format('sha-{0}', github.sha) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Compute image name (lowercase owner)
+        id: vars
+        shell: bash
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/tripplanner-api" >> "$GITHUB_OUTPUT"
+          
       - name: Setup flyctl
         uses: superfly/flyctl-actions/setup-flyctl@v1
 
@@ -193,6 +200,7 @@ jobs:
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: |
-          echo "Deploying ${IMAGE_NAME}:${DEPLOY_TAG}"
-          flyctl deploy --image "${IMAGE_NAME}:${DEPLOY_TAG}" --strategy immediate --wait-timeout 300
+          IMAGE_NAME="${{ steps.vars.outputs.image }}"
+          echo "Deploying ${IMAGE_NAME}:${{ env.DEPLOY_TAG }}"
+          flyctl deploy --image "${IMAGE_NAME}:${{ env.DEPLOY_TAG }}" --strategy immediate --wait-timeout 300
 
