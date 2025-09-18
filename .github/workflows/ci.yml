@@ -115,7 +115,7 @@ jobs:
       packages: write
       id-token: write
     env:
-      IMAGE_NAME: ghcr.io/${{ github.repository }}/tripplanner-api
+      IMAGE_NAME: ${{ toLower(format('ghcr.io/{0}/tripplanner-api', github.repository)) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -158,7 +158,7 @@ jobs:
     permissions:
       contents: read
     env:
-      IMAGE_NAME: ghcr.io/${{ github.repository }}/tripplanner-api
+      IMAGE_NAME: ${{ toLower(format('ghcr.io/{0}/tripplanner-api', github.repository)) }}
       # choose the tag to deploy: latest on main, else the exact SHA tag
       DEPLOY_TAG: ${{ github.ref_name == 'main' && 'latest' || format('sha-{0}', github.sha) }}
     steps:
