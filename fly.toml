@@ -1,0 +1,19 @@
+# fly.toml app configuration file generated for tripper on 2025-09-19T00:18:34+02:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'tripper'
+primary_region = 'fra'
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+
+[[mounts]]
+  source = "tripperdata"
+  destination = "/app/data"
