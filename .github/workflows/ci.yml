@@ -6,7 +6,6 @@ on:
   pull_request:
     branches: [ main ]
 
-# Cancel in-progress runs for the same branch/PR
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -23,8 +22,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # If you prefer Fedora userspace, see the container: section below
         os: [ ubuntu-latest, windows-latest ]
-        dotnet: [ '9.0.x' ]  # adjust if you add other TFMs
+        dotnet: [ '9.0.x' ]
 
     steps:
       - name: Checkout
@@ -34,20 +34,16 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ matrix.dotnet }}
-          cache: true   # NuGet cache
+          # cache removed because no packages.lock.json present
 
-      # --- Restore once at repo root
       - name: Restore
         run: dotnet restore
 
-      # --- Build
-      # On Windows we can build the whole solution (includes WPF).
       - name: Build solution (Windows)
         if: runner.os == 'Windows'
         run: dotnet build TripPlanner.sln -c $env:CONFIG --no-restore
         shell: pwsh
 
-      # On Linux, build all cross-platform projects explicitly (skip WPF).
       - name: Build cross-platform projects (Linux)
         if: runner.os != 'Windows'
         run: |
@@ -60,7 +56,6 @@ jobs:
           dotnet build src/TripPlanner.Client/TripPlanner.Client.csproj -c $CONFIG --no-restore
           dotnet build src/TripPlanner.Api/TripPlanner.Api.csproj -c $CONFIG --no-restore
 
-      # --- Tests (domain tests only right now)
       - name: Test (Domain)
         run: >
           dotnet test tests/TripPlanner.Tests.Domain/TripPlanner.Tests.Domain.csproj
@@ -77,7 +72,6 @@ jobs:
           name: test-results-${{ matrix.os }}
           path: artifacts/test-results
 
-      # --- OpenAPI (generate & upload)
       - name: Build API (ensure ready for swagger tool)
         run: dotnet build src/TripPlanner.Api/TripPlanner.Api.csproj -c ${{ env.CONFIG }} --no-restore
 
@@ -97,3 +91,48 @@ jobs:
         with:
           name: openapi-v1-${{ matrix.os }}
           path: artifacts/openapi-v1.json
+
+  docker:
+    name: Docker Image (API)
+    needs: build-test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    env:
+      IMAGE_NAME: ghcr.io/${{ github.repository }}/tripplanner-api
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build & Push (linux/amd64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: src/TripPlanner.Api/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

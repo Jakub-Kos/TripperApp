@@ -3,6 +3,13 @@ Seminar Advanced C# Project with the aim of providing a handy tool for planning 
 
 
 ```bash
+docker compose up --build
+
+docker compose down
+```
+
+
+```bash
 # Run from repo root
 $target = 90KB
 $files = Get-ChildItem -Recurse -File -Include *.cs |

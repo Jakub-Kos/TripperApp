@@ -8,10 +8,12 @@ using TripPlanner.Api.Infrastructure.Validation;
 using TripPlanner.Core.Validation.Validators;
 
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 using TripPlanner.Api.Swagger;
 using TripPlanner.Api.Swagger.Examples;
 using Swashbuckle.AspNetCore.Filters; // not strictly required, but fine
-using Microsoft.OpenApi.Models;       // if you later customize WithOpenApi
+using Microsoft.OpenApi.Models;
+using TripPlanner.Adapters.Persistence.Ef.Persistence.Db; // if you later customize WithOpenApi
 
 var builder = WebApplication.CreateBuilder(args);
 var services = builder.Services;
@@ -36,6 +38,9 @@ var cs = builder.Configuration.GetConnectionString("Default") ?? "Data Source=tr
 services.AddEfPersistence(cs);
 
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+    await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
 
 app.UseSwagger();
 app.UseSwaggerUI();
