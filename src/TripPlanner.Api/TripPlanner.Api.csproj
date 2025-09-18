@@ -5,9 +5,11 @@
     <ProjectReference Include="..\TripPlanner.Core.Contracts\TripPlanner.Core.Contracts.csproj" />
     <ProjectReference Include="..\TripPlanner.Adapters.Persistence.InMemory\TripPlanner.Adapters.Persistence.InMemory.csproj" />
     <ProjectReference Include="..\TripPlanner.Adapters.Persistence.Ef\TripPlanner.Adapters.Persistence.Ef.csproj" />
+    <ProjectReference Include="..\TripPlanner.Core.Validation\TripPlanner.Core.Validation.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.0.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.0">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
