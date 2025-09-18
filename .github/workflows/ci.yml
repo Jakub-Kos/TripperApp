@@ -1,0 +1,99 @@
+﻿name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+# Cancel in-progress runs for the same branch/PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  DOTNET_NOLOGO: true
+  CONFIG: Release
+
+jobs:
+  build-test:
+    name: Build & Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest, windows-latest ]
+        dotnet: [ '9.0.x' ]  # adjust if you add other TFMs
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET ${{ matrix.dotnet }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ matrix.dotnet }}
+          cache: true   # NuGet cache
+
+      # --- Restore once at repo root
+      - name: Restore
+        run: dotnet restore
+
+      # --- Build
+      # On Windows we can build the whole solution (includes WPF).
+      - name: Build solution (Windows)
+        if: runner.os == 'Windows'
+        run: dotnet build TripPlanner.sln -c $env:CONFIG --no-restore
+        shell: pwsh
+
+      # On Linux, build all cross-platform projects explicitly (skip WPF).
+      - name: Build cross-platform projects (Linux)
+        if: runner.os != 'Windows'
+        run: |
+          dotnet build src/TripPlanner.Core.Domain/TripPlanner.Core.Domain.csproj -c $CONFIG --no-restore
+          dotnet build src/TripPlanner.Core.Contracts/TripPlanner.Core.Contracts.csproj -c $CONFIG --no-restore
+          dotnet build src/TripPlanner.Core.Application/TripPlanner.Core.Application.csproj -c $CONFIG --no-restore
+          dotnet build src/TripPlanner.Adapters.Persistence.Ef/TripPlanner.Adapters.Persistence.Ef.csproj -c $CONFIG --no-restore
+          dotnet build src/TripPlanner.Adapters.Persistence.InMemory/TripPlanner.Adapters.Persistence.InMemory.csproj -c $CONFIG --no-restore
+          dotnet build src/TripPlanner.Core.Validation/TripPlanner.Core.Validation.csproj -c $CONFIG --no-restore
+          dotnet build src/TripPlanner.Client/TripPlanner.Client.csproj -c $CONFIG --no-restore
+          dotnet build src/TripPlanner.Api/TripPlanner.Api.csproj -c $CONFIG --no-restore
+
+      # --- Tests (domain tests only right now)
+      - name: Test (Domain)
+        run: >
+          dotnet test tests/TripPlanner.Tests.Domain/TripPlanner.Tests.Domain.csproj
+          -c ${{ env.CONFIG }}
+          --no-build
+          --logger "trx;LogFileName=TestResults.trx"
+          --results-directory ./artifacts/test-results
+          --collect:"XPlat Code Coverage"
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-${{ matrix.os }}
+          path: artifacts/test-results
+
+      # --- OpenAPI (generate & upload)
+      - name: Build API (ensure ready for swagger tool)
+        run: dotnet build src/TripPlanner.Api/TripPlanner.Api.csproj -c ${{ env.CONFIG }} --no-restore
+
+      - name: Install Swashbuckle CLI
+        run: dotnet tool install --global Swashbuckle.AspNetCore.Cli
+
+      - name: Generate OpenAPI (v1)
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          swagger tofile \
+            --output artifacts/openapi-v1.json \
+            src/TripPlanner.Api/bin/${CONFIG}/net9.0/TripPlanner.Api.dll v1
+
+      - name: Upload OpenAPI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi-v1-${{ matrix.os }}
+          path: artifacts/openapi-v1.json
