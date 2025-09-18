@@ -5,6 +5,7 @@ WORKDIR /src
 # Copy solution + props first for better layer caching
 COPY TripPlanner.sln ./
 COPY Directory.Build.props ./Directory.Build.props
+
 COPY src/TripPlanner.Core.Domain/TripPlanner.Core.Domain.csproj src/TripPlanner.Core.Domain/
 COPY src/TripPlanner.Core.Contracts/TripPlanner.Core.Contracts.csproj src/TripPlanner.Core.Contracts/
 COPY src/TripPlanner.Core.Application/TripPlanner.Core.Application.csproj src/TripPlanner.Core.Application/
@@ -14,7 +15,7 @@ COPY src/TripPlanner.Core.Validation/TripPlanner.Core.Validation.csproj src/Trip
 COPY src/TripPlanner.Client/TripPlanner.Client.csproj src/TripPlanner.Client/
 COPY src/TripPlanner.Api/TripPlanner.Api.csproj src/TripPlanner.Api/
 
-RUN dotnet restore TripPlanner.sln
+RUN dotnet restore src/TripPlanner.Api/TripPlanner.Api.csproj
 
 # Now copy the rest and publish
 COPY src/ ./src/
