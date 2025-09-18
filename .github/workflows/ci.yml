@@ -35,9 +35,23 @@ jobs:
         with:
           dotnet-version: ${{ matrix.dotnet }}
           # cache removed because no packages.lock.json present
+            
+      # --- Restore
+      - name: Restore (Windows)
+        if: runner.os == 'Windows'
+        run: dotnet restore TripPlanner.sln
 
-      - name: Restore
-        run: dotnet restore
+      - name: Restore (Linux)
+        if: runner.os != 'Windows'
+        run: |
+          dotnet restore src/TripPlanner.Core.Domain/TripPlanner.Core.Domain.csproj
+          dotnet restore src/TripPlanner.Core.Contracts/TripPlanner.Core.Contracts.csproj
+          dotnet restore src/TripPlanner.Core.Application/TripPlanner.Core.Application.csproj
+          dotnet restore src/TripPlanner.Adapters.Persistence.Ef/TripPlanner.Adapters.Persistence.Ef.csproj
+          dotnet restore src/TripPlanner.Adapters.Persistence.InMemory/TripPlanner.Adapters.Persistence.InMemory.csproj
+          dotnet restore src/TripPlanner.Core.Validation/TripPlanner.Core.Validation.csproj
+          dotnet restore src/TripPlanner.Client/TripPlanner.Client.csproj
+          dotnet restore src/TripPlanner.Api/TripPlanner.Api.csproj
 
       - name: Build solution (Windows)
         if: runner.os == 'Windows'
