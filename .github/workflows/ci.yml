@@ -14,6 +14,7 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: 1
   DOTNET_NOLOGO: true
   CONFIG: Release
+  DEPLOY_ENABLED: 'false'
 
 jobs:
   build-test:
@@ -155,6 +156,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
         
   deploy-fly:
+    if: ${{ env.DEPLOY_ENABLED == 'true' }}
     name: Deploy to Fly.io
     needs: docker               # wait for image build & push to GHCR
     runs-on: ubuntu-latest
