@@ -107,11 +107,10 @@
               <DataGrid ItemsSource="{Binding Destinations}"
                         AutoGenerateColumns="False" IsReadOnly="True"
                         Height="200" Margin="0,4,0,8"
-                        SelectedValuePath="DestinationId"
                         SelectedValue="{Binding SelectedDestinationId}">
                 <DataGrid.Columns>
-                  <DataGridTextColumn Header="Id" Binding="{Binding DestinationId}" Width="2*"/>
                   <DataGridTextColumn Header="Title" Binding="{Binding Title}" Width="2*"/>
+                  <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="2*"/>
                   <DataGridTextColumn Header="Votes" Binding="{Binding Votes}" Width="Auto"/>
                 </DataGrid.Columns>
               </DataGrid>

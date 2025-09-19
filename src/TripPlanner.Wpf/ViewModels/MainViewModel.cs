@@ -1,6 +1,8 @@
-﻿using System.Collections.ObjectModel;
-using System.ComponentModel;
-using System.Windows.Input;
+﻿using System;
+using System.Collections.ObjectModel;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TripPlanner.Client.Abstractions;
@@ -9,7 +11,7 @@ using TripPlanner.Core.Contracts.Contracts.V1.Trips;
 
 namespace TripPlanner.Wpf.ViewModels;
 
-public partial class MainViewModel : ObservableObject, INotifyPropertyChanged
+public partial class MainViewModel : ObservableObject
 {
     private readonly ITripPlannerClient _client;
 
@@ -22,6 +24,7 @@ public partial class MainViewModel : ObservableObject, INotifyPropertyChanged
 
     // Selection & summary
     public ObservableCollection<TripDto> Trips { get; } = new();
+
     [ObservableProperty] private TripDto? _selectedTrip;
     [ObservableProperty] private TripSummaryDto? _selectedSummary;
 
@@ -31,14 +34,7 @@ public partial class MainViewModel : ObservableObject, INotifyPropertyChanged
     [ObservableProperty] private string _voteUserId = "00000000-0000-0000-0000-000000000002";
     [ObservableProperty] private string? _selectedDateOptionId;
 
-    public DestinationsViewModel DestinationsVm { get; }
-    
-    public MainViewModel(ITripPlannerClient client, DestinationsViewModel destinationsVm)
-    {
-        _client = client;
-        DestinationsVm = destinationsVm;
-    }
-    
+    // Optional: also expose an ID-only selection for XAML that binds SelectedValuePath="TripId"
     private string? _selectedTripId;
     public string? SelectedTripId
     {
@@ -48,10 +44,46 @@ public partial class MainViewModel : ObservableObject, INotifyPropertyChanged
             if (_selectedTripId == value) return;
             _selectedTripId = value;
             OnPropertyChanged();
-            DestinationsVm.TripId = _selectedTripId ?? string.Empty;     // or DestinationsVm.SetTrip(_selectedTripId)
-            // optionally trigger an initial load:
-            ((ICommand)DestinationsVm.RefreshCommand).Execute(null);
+
+            // Keep SelectedTrip in sync when binding uses SelectedValue (TripId)
+            var match = Trips.FirstOrDefault(t => t.TripId == value);
+            if (!ReferenceEquals(SelectedTrip, match))
+                SelectedTrip = match;
         }
+    }
+
+    public DestinationsViewModel DestinationsVm { get; }
+
+    public MainViewModel(ITripPlannerClient client, DestinationsViewModel destinationsVm)
+    {
+        _client = client;
+        DestinationsVm = destinationsVm;
+        // IMPORTANT: No fire-and-forget here. Call InitializeAsync() from App after sign-in.
+    }
+
+    /// <summary>
+    /// Call this from App.xaml.cs after successful sign-in, and AWAIT it.
+    /// </summary>
+    public async Task InitializeAsync(CancellationToken ct = default)
+    {
+        await GuardAsync(async () =>
+        {
+            await LoadTripsAsync(ct);
+
+            // Auto-select first trip on initial load -> this will also drive Destinations tab
+            if (Trips.Count > 0 && SelectedTrip is null && SelectedTripId is null)
+                SelectedTrip = Trips[0];
+        });
+    }
+
+    private async Task LoadTripsAsync(CancellationToken ct)
+    {
+        var page = await _client.ListTripsAsync(skip: 0, take: 50, ct);
+        Trips.Clear();
+        foreach (var t in page)
+            Trips.Add(new TripDto(t.TripId, t.Name, t.OrganizerId));
+
+        Status = $"Loaded {Trips.Count} trips.";
     }
 
     [RelayCommand]
@@ -59,26 +91,47 @@ public partial class MainViewModel : ObservableObject, INotifyPropertyChanged
     {
         await GuardAsync(async () =>
         {
-            Trips.Clear();
-            foreach (var t in await _client.ListTripsAsync())
-                Trips.Add(t);
-            Status = $"Loaded {Trips.Count} trips.";
+            await LoadTripsAsync(CancellationToken.None);
+
+            // keep current selection by id if possible
+            if (SelectedTrip is not null)
+            {
+                var keep = Trips.FirstOrDefault(t => t.TripId == SelectedTrip.TripId);
+                SelectedTrip = keep ?? Trips.FirstOrDefault();
+            }
+            else if (SelectedTripId is not null)
+            {
+                var keep = Trips.FirstOrDefault(t => t.TripId == SelectedTripId);
+                SelectedTrip = keep ?? Trips.FirstOrDefault();
+            }
         });
     }
 
     partial void OnSelectedTripChanged(TripDto? value)
     {
-        // Load summary in background (as you already do)
-        _ = LoadSummaryAsync(value?.TripId);
+        // Keep SelectedTripId in sync (when binding uses SelectedItem)
+        var newId = value?.TripId;
+        if (_selectedTripId != newId)
+        {
+            _selectedTripId = newId;
+            OnPropertyChanged(nameof(SelectedTripId));
+        }
 
-        // Wire Destinations tab immediately using the selected trip id (string)
-        DestinationsVm.TripId = value?.TripId ?? string.Empty;
-        _ = DestinationsVm.RefreshCommand;
+        // Load summary (async) and wire Destinations tab
+        _ = LoadSummaryAsync(newId);
+
+        DestinationsVm.TripId   = newId ?? string.Empty;
+        DestinationsVm.TripName = value?.Name;
+
+        // Kick a refresh on the Destinations tab (if user already opened it)
+        if (DestinationsVm.RefreshCommand.CanExecute(null))
+            DestinationsVm.RefreshCommand.Execute(null);
     }
 
     private async Task LoadSummaryAsync(string? tripId)
     {
         if (string.IsNullOrWhiteSpace(tripId)) { SelectedSummary = null; return; }
+
         await GuardAsync(async () =>
         {
             SelectedSummary = await _client.GetTripByIdAsync(tripId);
@@ -92,9 +145,9 @@ public partial class MainViewModel : ObservableObject, INotifyPropertyChanged
         await GuardAsync(async () =>
         {
             var created = await _client.CreateTripAsync(new CreateTripRequest(NewTripName, OrganizerId));
-            Status = $"Created {created.TripId}";
             await RefreshAsync();
             SelectedTrip = Trips.FirstOrDefault(t => t.TripId == created.TripId);
+            Status = $"Created trip “{created.Name}”.";
         });
     }
 
@@ -102,6 +155,7 @@ public partial class MainViewModel : ObservableObject, INotifyPropertyChanged
     private async Task AddParticipantAsync()
     {
         if (SelectedTrip is null) { Status = "Select a trip."; return; }
+
         await GuardAsync(async () =>
         {
             var ok = await _client.AddParticipantAsync(SelectedTrip.TripId, new AddParticipantRequest(NewParticipantUserId));
@@ -118,8 +172,11 @@ public partial class MainViewModel : ObservableObject, INotifyPropertyChanged
 
         await GuardAsync(async () =>
         {
-            var id = await _client.ProposeDateOptionAsync(SelectedTrip.TripId,
-                new ProposeDateRequest(DateOnly.FromDateTime(NewDate.Value).ToString("yyyy-MM-dd")));
+            var id = await _client.ProposeDateOptionAsync(
+                SelectedTrip.TripId,
+                new ProposeDateRequest(DateOnly.FromDateTime(NewDate.Value).ToString("yyyy-MM-dd"))
+            );
+
             Status = id is not null ? $"Date option {id} proposed." : "Trip not found.";
             await LoadSummaryAsync(SelectedTrip.TripId);
         });
@@ -133,8 +190,11 @@ public partial class MainViewModel : ObservableObject, INotifyPropertyChanged
 
         await GuardAsync(async () =>
         {
-            var ok = await _client.CastVoteAsync(SelectedTrip.TripId,
-                new CastVoteRequest(SelectedDateOptionId!, VoteUserId));
+            var ok = await _client.CastVoteAsync(
+                SelectedTrip.TripId,
+                new CastVoteRequest(SelectedDateOptionId!, VoteUserId)
+            );
+
             Status = ok ? "Vote cast." : "Option not found.";
             await LoadSummaryAsync(SelectedTrip.TripId);
         });
@@ -150,6 +210,7 @@ public partial class MainViewModel : ObservableObject, INotifyPropertyChanged
         }
         catch (ApiException ex)
         {
+            // Show friendly API errors (401/403/validation/etc.)
             Status = ex.Error?.Message ?? ex.Message;
         }
         catch (Exception ex)

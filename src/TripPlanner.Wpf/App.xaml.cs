@@ -1,6 +1,6 @@
-﻿using System.Threading.Tasks;
+﻿using System;
+using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Threading;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -17,11 +17,9 @@ public partial class App : Application
 
     protected override async void OnStartup(StartupEventArgs e)
     {
-        
-        
-        // Global exception handlers so we SEE problems instead of silent exit
+        // Make exceptions visible instead of silent exit
         AppDomain.CurrentDomain.UnhandledException += (s, ex) =>
-            MessageBox.Show(ex.ExceptionObject.ToString(), "Fatal (AppDomain)", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(ex.ExceptionObject?.ToString() ?? "(null)", "Fatal (AppDomain)", MessageBoxButton.OK, MessageBoxImage.Error);
         DispatcherUnhandledException += (s, ex) =>
         {
             MessageBox.Show(ex.Exception.ToString(), "UI Thread Exception", MessageBoxButton.OK, MessageBoxImage.Error);
@@ -29,10 +27,9 @@ public partial class App : Application
         };
         TaskScheduler.UnobservedTaskException += (s, ex) =>
             MessageBox.Show(ex.Exception.ToString(), "Task Exception", MessageBoxButton.OK, MessageBoxImage.Error);
-        
+
         try
         {
-            
             Host = Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
                 .ConfigureAppConfiguration(cfg => cfg.AddJsonFile("appsettings.json", optional: true, reloadOnChange: true))
                 .ConfigureServices((ctx, services) =>
@@ -42,20 +39,20 @@ public partial class App : Application
                     services.AddSingleton<WpfAuthState>();
                     services.AddSingleton<IAuthState>(sp => sp.GetRequiredService<WpfAuthState>());
 
-                    // API clients
+                    // Typed API clients (base address from appsettings.json)
                     services.AddTripPlannerClient(opts =>
                     {
                         var baseAddr = ctx.Configuration.GetSection("TripPlanner")["BaseAddress"] ?? "http://localhost:5162";
                         opts.BaseAddress = baseAddr;
                     });
 
-                    // Destinations API
-                    services.AddSingleton<DestinationsViewModel>();
+                    // Destinations API + VM
                     services.AddDestinationsClient();
-                    
-                    // MVVM
-                    services.AddSingleton<LoginViewModel>();
+                    services.AddSingleton<DestinationsViewModel>();
+
+                    // VMs
                     services.AddSingleton<MainViewModel>();
+                    services.AddSingleton<LoginViewModel>();
 
                     // Windows
                     services.AddSingleton<MainWindow>(sp =>
@@ -73,14 +70,14 @@ public partial class App : Application
 
             await Host.StartAsync();
 
-            // Set the MainWindow early; it helps app lifetime and ownership
-            var main = Host.Services.GetRequiredService<MainWindow>();
-            MainWindow = main;
+            // Prepare MainWindow early (good for owner relationships)
+            var mainWindow = Host.Services.GetRequiredService<MainWindow>();
+            MainWindow = mainWindow;
 
-            // Try silent refresh first
+            // Try silent refresh (if a refresh token is on disk)
             var state = Host.Services.GetRequiredService<WpfAuthState>();
             state.LoadRefreshTokenFromDisk();
-            if (!string.IsNullOrEmpty(state.RefreshToken))
+            if (!string.IsNullOrWhiteSpace(state.RefreshToken))
             {
                 try
                 {
@@ -90,25 +87,27 @@ public partial class App : Application
                 }
                 catch
                 {
-                    // ignore; will prompt login
+                    // ignore; we'll prompt login
                 }
             }
 
-            // If still unauthenticated, prompt login BEFORE showing main window
-            if (string.IsNullOrEmpty(state.AccessToken))
+            // If still unauthenticated, show login dialog before main window
+            if (string.IsNullOrWhiteSpace(state.AccessToken))
             {
                 var login = Host.Services.GetRequiredService<LoginWindow>();
-                // Do not set Owner if you suspect MainWindow not shown yet; dialog works standalone.
-                var ok = login.ShowDialog() == true;
+                var ok = (login.ShowDialog() == true);
                 if (!ok)
                 {
-                    // user cancelled -> exit cleanly
-                    Shutdown();
+                    Shutdown(); // user cancelled
                     return;
                 }
             }
 
-            // Now show main window
+            // IMPORTANT: initialize the main VM AFTER auth so API calls carry the token
+            var mainVm = Host.Services.GetRequiredService<MainViewModel>();
+            await mainVm.InitializeAsync();
+
+            // Show app
             MainWindow.Show();
         }
         catch (Exception ex)

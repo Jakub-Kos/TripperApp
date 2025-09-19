@@ -14,8 +14,10 @@ namespace TripPlanner.Wpf.ViewModels;
 public sealed class DestinationsViewModel : INotifyPropertyChanged
 {
     private readonly ITripPlannerClient _client;
+
     private string _tripId = "";
-    private string? _selectedDestinationId;
+    private string? _tripName;
+    private DestinationRow? _selectedDestination;
     private string? _newTitle;
     private string? _newDescription;
     private string? _newImagesRaw;
@@ -27,22 +29,35 @@ public sealed class DestinationsViewModel : INotifyPropertyChanged
 
     public ObservableCollection<DestinationRow> Destinations { get; } = new();
 
+    // When this changes we auto-refresh.
     public string TripId
     {
         get => _tripId;
-        set { if (_tripId != value) { _tripId = value; OnPropertyChanged(); } }
+        set
+        {
+            if (_tripId == value) return;
+            _tripId = value ?? "";
+            OnPropertyChanged();
+            _ = RefreshCoreAsync(CancellationToken.None); // fire & forget on trip change
+        }
     }
 
-    public string? SelectedDestinationId
+    public string? TripName
     {
-        get => _selectedDestinationId;
-        set { _selectedDestinationId = value; OnPropertyChanged(); }
+        get => _tripName;
+        set { _tripName = value; OnPropertyChanged(); }
+    }
+
+    public DestinationRow? SelectedDestination
+    {
+        get => _selectedDestination;
+        set { _selectedDestination = value; OnPropertyChanged(); }
     }
 
     public string? NewTitle
     {
         get => _newTitle;
-        set { _newTitle = value; OnPropertyChanged(); }
+        set { _newTitle = value; OnPropertyChanged(); ((AsyncCommand)ProposeCommand).RaiseCanExecuteChanged(); }
     }
 
     public string? NewDescription
@@ -60,7 +75,7 @@ public sealed class DestinationsViewModel : INotifyPropertyChanged
     public string? VoteUserId
     {
         get => _voteUserId;
-        set { _voteUserId = value; OnPropertyChanged(); }
+        set { _voteUserId = value; OnPropertyChanged(); ((AsyncCommand)VoteCommand).RaiseCanExecuteChanged(); }
     }
 
     public string? Status
@@ -72,7 +87,13 @@ public sealed class DestinationsViewModel : INotifyPropertyChanged
     public bool Busy
     {
         get => _busy;
-        set { _busy = value; OnPropertyChanged(); ((AsyncCommand)RefreshCommand).RaiseCanExecuteChanged(); ((AsyncCommand)ProposeCommand).RaiseCanExecuteChanged(); ((AsyncCommand)VoteCommand).RaiseCanExecuteChanged(); }
+        private set
+        {
+            _busy = value; OnPropertyChanged();
+            ((AsyncCommand)RefreshCommand).RaiseCanExecuteChanged();
+            ((AsyncCommand)ProposeCommand).RaiseCanExecuteChanged();
+            ((AsyncCommand)VoteCommand).RaiseCanExecuteChanged();
+        }
     }
 
     public ICommand RefreshCommand { get; }
@@ -82,9 +103,9 @@ public sealed class DestinationsViewModel : INotifyPropertyChanged
     public DestinationsViewModel(ITripPlannerClient client)
     {
         _client = client;
-        RefreshCommand = new AsyncCommand(ct => GuardAsync(RefreshCoreAsync, ct), () => !Busy);
-        ProposeCommand = new AsyncCommand(ct => GuardAsync(ProposeCoreAsync, ct), () => !Busy);
-        VoteCommand = new AsyncCommand(ct => GuardAsync(VoteCoreAsync, ct), () => !Busy);
+        RefreshCommand = new AsyncCommand(ct => GuardAsync(RefreshCoreAsync, ct), () => !Busy && !string.IsNullOrWhiteSpace(TripId));
+        ProposeCommand = new AsyncCommand(ct => GuardAsync(ProposeCoreAsync, ct), () => !Busy && !string.IsNullOrWhiteSpace(TripId) && !string.IsNullOrWhiteSpace(NewTitle));
+        VoteCommand    = new AsyncCommand(ct => GuardAsync(VoteCoreAsync,    ct), () => !Busy && !string.IsNullOrWhiteSpace(TripId) && SelectedDestination is not null && !string.IsNullOrWhiteSpace(VoteUserId));
     }
 
     private async Task GuardAsync(Func<CancellationToken, Task> action, CancellationToken ct)
@@ -107,9 +128,20 @@ public sealed class DestinationsViewModel : INotifyPropertyChanged
 
     private async Task RefreshCoreAsync(CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(TripId)) { Status = "No trip selected."; return; }
+        if (string.IsNullOrWhiteSpace(TripId))
+        {
+            Destinations.Clear();
+            Status = "No trip selected.";
+            return;
+        }
+
         var list = await _client.GetDestinationsAsync(TripId, ct);
-        if (list is null) { Destinations.Clear(); Status = "Trip not found."; return; }
+        if (list is null)
+        {
+            Destinations.Clear();
+            Status = "Trip not found.";
+            return;
+        }
 
         Destinations.Clear();
         foreach (var d in list.OrderByDescending(x => x.Votes))
@@ -131,32 +163,31 @@ public sealed class DestinationsViewModel : INotifyPropertyChanged
         var req = new ProposeDestinationRequest(NewTitle!, string.IsNullOrWhiteSpace(NewDescription) ? null : NewDescription, urls);
         var createdId = await _client.ProposeDestinationAsync(TripId, req, ct);
 
-        if (string.IsNullOrWhiteSpace(createdId))
-        {
-            Status = "Propose returned no id.";
-            return;
-        }
-
         // reset & refresh
         NewTitle = null; NewDescription = null; NewImagesRaw = null;
+        OnPropertyChanged(nameof(NewTitle));
+        OnPropertyChanged(nameof(NewDescription));
+        OnPropertyChanged(nameof(NewImagesRaw));
+
         await RefreshCoreAsync(ct);
-        Status = $"Proposed destination {createdId}.";
+        Status = string.IsNullOrWhiteSpace(createdId) ? "Proposed." : $"Proposed {createdId}.";
     }
 
     private async Task VoteCoreAsync(CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(TripId)) { Status = "No trip selected."; return; }
-        if (string.IsNullOrWhiteSpace(SelectedDestinationId)) { Status = "Select a destination."; return; }
+        if (SelectedDestination is null) { Status = "Select a destination."; return; }
         if (string.IsNullOrWhiteSpace(VoteUserId)) { Status = "Enter voter user id."; return; }
 
-        var ok = await _client.VoteDestinationAsync(TripId, SelectedDestinationId!, new VoteDestinationRequest(Guid.Parse(VoteUserId)), ct);
+        var ok = await _client.VoteDestinationAsync(TripId, SelectedDestination.DestinationId, new VoteDestinationRequest(Guid.Parse(VoteUserId!)), ct);
         if (!ok) { Status = "Destination not found."; return; }
 
         await RefreshCoreAsync(ct);
         Status = "Vote cast.";
     }
 
-    private void OnPropertyChanged([CallerMemberName] string? m = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(m));
+    private void OnPropertyChanged([CallerMemberName] string? m = null)
+        => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(m));
 
     public sealed record DestinationRow(string DestinationId, string Title, string? Description, string[] ImageUrls, int Votes);
 }
