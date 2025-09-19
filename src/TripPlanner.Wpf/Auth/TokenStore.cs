@@ -1,35 +1,41 @@
 ﻿using System.IO;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 
 namespace TripPlanner.Wpf.Auth;
 
 public sealed class TokenStore
 {
-    private readonly string _folder = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "TripPlanner");
+    private readonly string _path;
+    public TokenStore()
+    {
+        var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TripperApp");
+        Directory.CreateDirectory(dir);
+        _path = Path.Combine(dir, "tokens.dat");
+    }
 
-    private string FilePath => Path.Combine(_folder, "rtoken.bin");
+    private sealed class Payload { public string RefreshToken { get; set; } = ""; }
 
     public void SaveRefreshToken(string refreshToken)
     {
-        Directory.CreateDirectory(_folder);
-        var protectedBytes = ProtectedData.Protect(Encoding.UTF8.GetBytes(refreshToken), null, DataProtectionScope.CurrentUser);
-        File.WriteAllBytes(FilePath, protectedBytes);
+        var json = JsonSerializer.Serialize(new Payload { RefreshToken = refreshToken });
+        var bytes = Encoding.UTF8.GetBytes(json);
+        var protectedBytes = ProtectedData.Protect(bytes, null, DataProtectionScope.CurrentUser);
+        File.WriteAllBytes(_path, protectedBytes);
     }
 
-    public string? TryLoadRefreshToken()
+    public string? LoadRefreshToken()
     {
-        if (!File.Exists(FilePath)) return null;
-        try
-        {
-            var protectedBytes = File.ReadAllBytes(FilePath);
-            var data = ProtectedData.Unprotect(protectedBytes, null, DataProtectionScope.CurrentUser);
-            return Encoding.UTF8.GetString(data);
-        }
-        catch { return null; }
+        if (!File.Exists(_path)) return null;
+        var protectedBytes = File.ReadAllBytes(_path);
+        var bytes = ProtectedData.Unprotect(protectedBytes, null, DataProtectionScope.CurrentUser);
+        var payload = JsonSerializer.Deserialize<Payload>(bytes);
+        return payload?.RefreshToken;
     }
 
-    public void Clear() { if (File.Exists(FilePath)) File.Delete(FilePath); }
+    public void Clear()
+    {
+        if (File.Exists(_path)) File.Delete(_path);
+    }
 }

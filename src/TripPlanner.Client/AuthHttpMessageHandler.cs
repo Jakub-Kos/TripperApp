@@ -1,81 +1,84 @@
-﻿using System.Net;
-using System.Net.Http.Headers;
-using System.Net.Http.Json;
-using TripPlanner.Core.Contracts.Common;
+﻿using System.Net.Http.Headers;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace TripPlanner.Client;
 
-public sealed class AuthState
+public sealed class AuthHttpMessageHandler : DelegatingHandler
 {
-    public string? AccessToken { get; set; }
-    public DateTimeOffset? AccessExpiresAt { get; set; }
-    public string? RefreshToken { get; set; }
-}
+    private readonly IAuthState _state;
+    private readonly AuthClient _auth;
+    private readonly SemaphoreSlim _mutex = new(1,1);
 
-public sealed class AuthHttpMessageHandler(AuthState state, Func<Task<(string access, string refresh, int expiresIn)?> > refreshFunc)
-    : DelegatingHandler
-{
+    public AuthHttpMessageHandler(IAuthState state, AuthClient auth)
+    {
+        _state = state;
+        _auth = auth;
+    }
+
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
     {
-        if (!string.IsNullOrEmpty(state.AccessToken))
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", state.AccessToken);
+        await AttachAccessAsync(request, ct);
 
         var response = await base.SendAsync(request, ct);
+        if (response.StatusCode != System.Net.HttpStatusCode.Unauthorized)
+            return response;
 
-        if (response.StatusCode == HttpStatusCode.Unauthorized && !string.IsNullOrEmpty(state.RefreshToken))
+        // Try refresh once
+        if (string.IsNullOrEmpty(_state.RefreshToken))
+            return response;
+
+        await _mutex.WaitAsync(ct);
+        try
         {
-            response.Dispose();
-
-            var refreshed = await refreshFunc();
-            if (refreshed is not null)
+            // Another request might have refreshed while we waited; re-check
+            if (_state.AccessToken is null || response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
             {
-                state.AccessToken = refreshed.Value.access;
-                state.AccessExpiresAt = DateTimeOffset.UtcNow.AddSeconds(refreshed.Value.expiresIn);
-                state.RefreshToken = refreshed.Value.refresh;
-
-                var retry = await request.CloneAsync(ct);   // note: async clone
-                retry.Headers.Authorization = new AuthenticationHeaderValue("Bearer", state.AccessToken);
-                return await base.SendAsync(retry, ct);
+                var refreshed = await _auth.RefreshAsync(_state.RefreshToken!, ct);
+                _state.SetTokens(refreshed.AccessToken, refreshed.ExpiresInSeconds, refreshed.RefreshToken);
             }
         }
+        catch
+        {
+            _state.Clear(); // ensure clean slate
+            return response; // surface 401
+        }
+        finally
+        {
+            _mutex.Release();
+        }
 
-        return response;
+        // retry once with new token
+        var retry = request.Clone(); // extension below
+        await AttachAccessAsync(retry, ct);
+        return await base.SendAsync(retry, ct);
+    }
+
+    private Task AttachAccessAsync(HttpRequestMessage req, CancellationToken _)
+    {
+        if (!string.IsNullOrWhiteSpace(_state.AccessToken))
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _state.AccessToken);
+        return Task.CompletedTask;
     }
 }
 
 file static class HttpRequestMessageExtensions
 {
-    public static async Task<HttpRequestMessage> CloneAsync(this HttpRequestMessage req, CancellationToken ct = default)
+    public static HttpRequestMessage Clone(this HttpRequestMessage req)
     {
-        var clone = new HttpRequestMessage(req.Method, req.RequestUri)
-        {
-            Version = req.Version,
-#if NET6_0_OR_GREATER
-            VersionPolicy = req.VersionPolicy
-#endif
-        };
-
-        // headers
+        var clone = new HttpRequestMessage(req.Method, req.RequestUri);
+        // copy headers & content
         foreach (var h in req.Headers)
             clone.Headers.TryAddWithoutValidation(h.Key, h.Value);
-
-        // content
         if (req.Content is not null)
-            clone.Content = await req.Content.CloneAsync(ct);
-
+        {
+            var ms = new MemoryStream();
+            req.Content.CopyTo(ms, null, CancellationToken.None);
+            ms.Position = 0;
+            clone.Content = new StreamContent(ms);
+            foreach (var h in req.Content.Headers)
+                clone.Content.Headers.TryAddWithoutValidation(h.Key, h.Value);
+        }
         return clone;
-    }
-
-    private static async Task<HttpContent> CloneAsync(this HttpContent content, CancellationToken ct = default)
-    {
-        var ms = new MemoryStream();
-        await content.CopyToAsync(ms, ct);   // <-- async API
-        ms.Position = 0;
-
-        var copy = new StreamContent(ms);
-        foreach (var h in content.Headers)
-            copy.Headers.TryAddWithoutValidation(h.Key, h.Value);
-
-        return copy;
     }
 }

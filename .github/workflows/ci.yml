@@ -14,7 +14,6 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: 1
   DOTNET_NOLOGO: true
   CONFIG: Release
-  DEPLOY_ENABLED: 'false'
 
 jobs:
   build-test:
@@ -155,54 +154,53 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
         
-  deploy-fly:
-    if: ${{ env.DEPLOY_ENABLED == 'true' }}
-    name: Deploy to Fly.io
-    needs: docker               # wait for image build & push to GHCR
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    env:
-      # choose the tag to deploy: latest on main, else the exact SHA tag
-      DEPLOY_TAG: ${{ github.ref_name == 'main' && 'latest' || format('sha-{0}', github.sha) }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Compute image name (lowercase owner)
-        id: vars
-        shell: bash
-        run: echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/tripplanner-api" >> "$GITHUB_OUTPUT"
-          
-      - name: Setup flyctl
-        uses: superfly/flyctl-actions/setup-flyctl@v1
-
-      - name: Set app secrets (JWT, environment)
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-          JWT_KEY: ${{ secrets.JWT_KEY }}
-          JWT_ISSUER: ${{ secrets.JWT_ISSUER }}
-          JWT_AUDIENCE: ${{ secrets.JWT_AUDIENCE }}
-        run: |
-          flyctl secrets set \
-            ASPNETCORE_ENVIRONMENT=Production \
-            Jwt__Key="$JWT_KEY" \
-            Jwt__Issuer="$JWT_ISSUER" \
-            Jwt__Audience="$JWT_AUDIENCE"
-
-      # (Optional) ensure volume exists (no-op if already created)
-      - name: Ensure volume (idempotent)
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-        run: |
-          flyctl volumes list | grep -q tripperdata || \
-          flyctl volumes create tripperdata --region $(flyctl status --json | jq -r .app.primary_region) --size 1
-
-      - name: Deploy prebuilt image from GHCR
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-        run: |
-          IMAGE_NAME="${{ steps.vars.outputs.image }}"
-          echo "Deploying ${IMAGE_NAME}:${{ env.DEPLOY_TAG }}"
-          flyctl deploy --image "${IMAGE_NAME}:${{ env.DEPLOY_TAG }}" --strategy immediate --wait-timeout 300
+#  deploy-fly:
+#    name: Deploy to Fly.io
+#    needs: docker               # wait for image build & push to GHCR
+#    runs-on: ubuntu-latest
+#    permissions:
+#      contents: read
+#    env:
+#      # choose the tag to deploy: latest on main, else the exact SHA tag
+#      DEPLOY_TAG: ${{ github.ref_name == 'main' && 'latest' || format('sha-{0}', github.sha) }}
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@v4
+#
+#      - name: Compute image name (lowercase owner)
+#        id: vars
+#        shell: bash
+#        run: echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/tripplanner-api" >> "$GITHUB_OUTPUT"
+#          
+#      - name: Setup flyctl
+#        uses: superfly/flyctl-actions/setup-flyctl@v1
+#
+#      - name: Set app secrets (JWT, environment)
+#        env:
+#          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+#          JWT_KEY: ${{ secrets.JWT_KEY }}
+#          JWT_ISSUER: ${{ secrets.JWT_ISSUER }}
+#          JWT_AUDIENCE: ${{ secrets.JWT_AUDIENCE }}
+#        run: |
+#          flyctl secrets set \
+#            ASPNETCORE_ENVIRONMENT=Production \
+#            Jwt__Key="$JWT_KEY" \
+#            Jwt__Issuer="$JWT_ISSUER" \
+#            Jwt__Audience="$JWT_AUDIENCE"
+#
+#      # (Optional) ensure volume exists (no-op if already created)
+#      - name: Ensure volume (idempotent)
+#        env:
+#          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+#        run: |
+#          flyctl volumes list | grep -q tripperdata || \
+#          flyctl volumes create tripperdata --region $(flyctl status --json | jq -r .app.primary_region) --size 1
+#
+#      - name: Deploy prebuilt image from GHCR
+#        env:
+#          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+#        run: |
+#          IMAGE_NAME="${{ steps.vars.outputs.image }}"
+#          echo "Deploying ${IMAGE_NAME}:${{ env.DEPLOY_TAG }}"
+#          flyctl deploy --image "${IMAGE_NAME}:${{ env.DEPLOY_TAG }}" --strategy immediate --wait-timeout 300
 
