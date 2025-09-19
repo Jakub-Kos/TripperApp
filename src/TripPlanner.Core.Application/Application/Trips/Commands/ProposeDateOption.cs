@@ -16,7 +16,7 @@ public sealed class ProposeDateOptionHandler
         if (!Guid.TryParse(cmd.TripId, out var t)) return null;
 
         var id = await _repo.ProposeDateOption(new TripId(t), cmd.Date, ct);
-        await _uow.SaveChanges(ct);
+        await _uow.SaveChangesAsync(ct);
         return id;
     }
 }

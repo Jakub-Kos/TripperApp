@@ -6,6 +6,8 @@ public sealed class Trip
 {
     private readonly HashSet<UserId> _participants = new();
     private readonly List<DateOption> _dateOptions = new();
+    private readonly List<DestinationProposal> _destinationProposals = new();
+    public IReadOnlyCollection<DestinationProposal> DestinationProposals => _destinationProposals; 
     
     public TripId Id { get; private set; }
     public string Name { get; private set; }
@@ -41,19 +43,66 @@ public sealed class Trip
         opt.CastVote(voter);
     }
 
-    public static Trip Rehydrate(TripId id, string name, UserId organizerId,
+    public static Trip Rehydrate(
+        TripId id, 
+        string name, 
+        UserId organizerId,
         IEnumerable<UserId> participants,
-        IEnumerable<(DateOptionId optId, DateOnly date, IEnumerable<UserId> votes)> dateOptions)
+        IEnumerable<(DateOptionId optId, DateOnly date, IEnumerable<UserId> votes)> dateOptions,
+        IEnumerable<(DestinationId Id, string Title, string? Description, IEnumerable<string> ImageUrls, IEnumerable<UserId> Votes)> destinations)
     {
         var t = new Trip(id, name, organizerId);
-        t._participants.UnionWith(participants);
-        foreach (var (optId, date, votes) in dateOptions)
+
+        // participants
+        if (participants is not null)
+            t._participants.UnionWith(participants);
+
+        // date options (+votes)
+        if (dateOptions is not null)
         {
-            var opt = new DateOption(optId, date);
-            foreach (var v in votes) opt.CastVote(v);
-            t._dateOptions.Add(opt);
+            foreach (var (optId, date, votes) in dateOptions)
+            {
+                var opt = new DateOption(optId, date);
+                if (votes is not null)
+                {
+                    foreach (var v in votes)
+                        opt.CastVote(v);
+                }
+                t._dateOptions.Add(opt);
+            }
         }
+
+        // destinations (+images + votes)
+        if (destinations is not null)
+        {
+            foreach (var (destId, title, description, imageUrls, votes) in destinations)
+            {
+                var proposal = new DestinationProposal(destId, title, description, imageUrls ?? Array.Empty<string>());
+
+                if (votes is not null)
+                {
+                    foreach (var v in votes)
+                        proposal.AddVote(v);
+                }
+
+                t._destinationProposals.Add(proposal);
+            }
+        }
+
         return t;
+    }
+
+    public DestinationId ProposeDestination(string title, string? description, IEnumerable<string> imageUrls)
+    {
+        var p = new DestinationProposal(DestinationId.New(), title, description, imageUrls);
+        _destinationProposals.Add(p);
+        return p.Id;
+    }
+
+    public bool VoteDestination(DestinationId destinationId, UserId voter)
+    {
+        var p = _destinationProposals.FirstOrDefault(x => x.Id.Equals(destinationId));
+        return p is not null && p.AddVote(voter);
     }
 }
 

@@ -10,6 +10,9 @@ public sealed class AppDbContext : DbContext
 
     public DbSet<DateOptionRecord> DateOptions => Set<DateOptionRecord>();
     public DbSet<DateVoteRecord> DateVotes => Set<DateVoteRecord>();
+    public DbSet<DestinationRecord> Destinations => Set<DestinationRecord>();
+    public DbSet<DestinationImageRecord> DestinationImages => Set<DestinationImageRecord>();
+    public DbSet<DestinationVoteRecord> DestinationVotes => Set<DestinationVoteRecord>();
     
     public DbSet<UserRecord> Users => Set<UserRecord>();
     public DbSet<RefreshTokenRecord> RefreshTokens => Set<RefreshTokenRecord>();
@@ -24,8 +27,13 @@ public sealed class AppDbContext : DbContext
         b.Entity<RefreshTokenRecord>(ConfigureRefreshToken);
         b.Entity<TripRecord>(ConfigureTrip);
         b.Entity<TripParticipantRecord>(ConfigureParticipant);
+        
         b.Entity<DateOptionRecord>(ConfigureDateOption);
         b.Entity<DateVoteRecord>(ConfigureDateVote);
+
+        b.Entity<DestinationRecord>(ConfigureDestination);
+        b.Entity<DestinationImageRecord>(ConfigureDestinationImage);
+        b.Entity<DestinationVoteRecord>(ConfigureDestinationVote);
     }
 
     private static void ConfigureUser(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<UserRecord> e)
@@ -98,5 +106,26 @@ public sealed class AppDbContext : DbContext
         e.Property(x => x.DateOptionId).IsRequired();
         e.Property(x => x.UserId).IsRequired();
         e.HasIndex(x => new { x.DateOptionId, x.UserId }).IsUnique(); // one vote per user per option
+    }
+
+    private static void ConfigureDestination(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<DestinationRecord> e)
+    {
+        e.HasKey(x => x.DestinationId);
+        e.Property(x => x.Title).IsRequired().HasMaxLength(256);
+        e.HasOne(x => x.Trip).WithMany(t => t.Destinations).HasForeignKey(x => x.TripId);
+        e.HasMany(x => x.Images).WithOne(i => i.Destination).HasForeignKey(i => i.DestinationId).OnDelete(DeleteBehavior.Cascade);
+        e.HasMany(x => x.Votes).WithOne(v => v.Destination).HasForeignKey(v => v.DestinationId).OnDelete(DeleteBehavior.Cascade);
+    }
+    
+    private static void ConfigureDestinationImage(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<DestinationImageRecord> e)
+    {
+        e.HasKey(x => x.Id);
+        e.Property(x => x.Url).IsRequired().HasMaxLength(2048);
+    }
+    
+    private static void ConfigureDestinationVote(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<DestinationVoteRecord> e)
+    {
+        e.HasKey(x => x.Id);
+        e.HasIndex(x => new { x.DestinationId, x.UserId }).IsUnique(); // one vote per user
     }
 }

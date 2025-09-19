@@ -18,7 +18,7 @@ public sealed class AddParticipantHandler
 
         var ok = await _repo.AddParticipant(new TripId(t), new UserId(u), ct);
         if (!ok) return false;
-        await _uow.SaveChanges(ct);
+        await _uow.SaveChangesAsync(ct);
         return true;
     }
 }

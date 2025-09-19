@@ -12,25 +12,50 @@ public sealed class TripRepository : ITripRepository
     private readonly AppDbContext _db;
     public TripRepository(AppDbContext db) => _db = db;
 
+    // NEW: Interface member implementation
+    public Task<Trip?> FindByIdAsync(TripId id, CancellationToken ct = default)
+        => Get(id, ct);
+
+    // Loads a single Trip aggregate, including Participants, DateOptions(+Votes), and Destinations(+Images,+Votes)
     public async Task<Trip?> Get(TripId id, CancellationToken ct)
     {
         var r = await _db.Trips
             .Include(t => t.Participants)
             .Include(t => t.DateOptions).ThenInclude(o => o.Votes)
+            .Include(t => t.Destinations).ThenInclude(d => d.Images)
+            .Include(t => t.Destinations).ThenInclude(d => d.Votes)
             .FirstOrDefaultAsync(t => t.TripId == id.Value, ct);
 
         if (r is null) return null;
 
         var participants = r.Participants.Select(p => new UserId(p.UserId));
+
         var options = r.DateOptions.Select(o =>
             (new DateOptionId(o.DateOptionId),
                 DateOnly.Parse(o.DateIso),
                 o.Votes.Select(v => new UserId(v.UserId))));
 
-        return Trip.Rehydrate(new TripId(r.TripId), r.Name, new UserId(r.OrganizerId), participants, options);
+        // NEW: map Destinations with Images and Votes
+        var destinations = r.Destinations.Select(d =>
+            (new DestinationId(d.DestinationId),
+             d.Title,
+             d.Description,
+             d.Images.Select(i => i.Url),
+             d.Votes.Select(v => new UserId(v.UserId)))
+        );
+
+        // Requires Trip.Rehydrate overload with destinations
+        return Trip.Rehydrate(
+            new TripId(r.TripId),
+            r.Name,
+            new UserId(r.OrganizerId),
+            participants,
+            options,
+            destinations
+        );
     }
 
-    public async Task Add(Trip trip, CancellationToken ct)
+    public async Task AddAsync(Trip trip, CancellationToken ct)
     {
         var rec = new TripRecord
         {
@@ -46,13 +71,24 @@ public sealed class TripRepository : ITripRepository
                 TripId = trip.Id.Value,
                 DateIso = o.Date.ToString("yyyy-MM-dd"),
                 Votes = o.Votes.Select(v => new DateVoteRecord { DateOptionId = o.Id.Value, UserId = v.Value }).ToList()
+            }).ToList(),
+            // NEW: persist initial destinations if any are present in the aggregate
+            Destinations = trip.DestinationProposals.Select(p => new DestinationRecord
+            {
+                DestinationId = p.Id.Value,
+                TripId = trip.Id.Value,
+                Title = p.Title,
+                Description = p.Description,
+                Images = p.ImageUrls.Select(u => new DestinationImageRecord { Url = u }).ToList(),
+                Votes = p.VotesBy.Select(v => new DestinationVoteRecord { UserId = v.Value }).ToList()
             }).ToList()
         };
+
         _db.Trips.Add(rec);
         await Task.CompletedTask;
     }
 
-    public async Task<IReadOnlyList<Trip>> List(int skip, int take, CancellationToken ct)
+    public async Task<IReadOnlyList<Trip>> ListAsync(int skip, int take, CancellationToken ct)
     {
         var recs = await _db.Trips
             .AsNoTracking()
@@ -60,6 +96,8 @@ public sealed class TripRepository : ITripRepository
             .Skip(skip).Take(take)
             .Include(t => t.Participants)
             .Include(t => t.DateOptions).ThenInclude(o => o.Votes)
+            .Include(t => t.Destinations).ThenInclude(d => d.Images)
+            .Include(t => t.Destinations).ThenInclude(d => d.Votes)
             .ToListAsync(ct);
 
         return recs.Select(r =>
@@ -67,11 +105,28 @@ public sealed class TripRepository : ITripRepository
             var participants = r.Participants.Select(p => new UserId(p.UserId));
             var options = r.DateOptions.Select(o =>
                 (new DateOptionId(o.DateOptionId), DateOnly.Parse(o.DateIso), o.Votes.Select(v => new UserId(v.UserId))));
-            return Trip.Rehydrate(new TripId(r.TripId), r.Name, new UserId(r.OrganizerId), participants, options);
+
+            // NEW: map Destinations with Images and Votes
+            var destinations = r.Destinations.Select(d =>
+                (new DestinationId(d.DestinationId),
+                 d.Title,
+                 d.Description,
+                 d.Images.Select(i => i.Url),
+                 d.Votes.Select(v => new UserId(v.UserId)))
+            );
+
+            return Trip.Rehydrate(
+                new TripId(r.TripId),
+                r.Name,
+                new UserId(r.OrganizerId),
+                participants,
+                options,
+                destinations
+            );
         }).ToList();
     }
 
-    // Targeted mutations
+    // Targeted mutations (unchanged)
 
     public async Task<bool> AddParticipant(TripId tripId, UserId userId, CancellationToken ct)
     {
@@ -113,5 +168,34 @@ public sealed class TripRepository : ITripRepository
 
         _db.DateVotes.Add(new DateVoteRecord { DateOptionId = dateOptionId.Value, UserId = userId.Value });
         return true;
+    }
+
+    // NEW: Persist aggregate changes (used for Destinations in v1)
+    public async Task UpdateAsync(Trip trip, CancellationToken ct = default)
+    {
+        // Ensure trip exists
+        var exists = await _db.Trips.AnyAsync(t => t.TripId == trip.Id.Value, ct);
+        if (!exists) throw new InvalidOperationException("Trip not found.");
+
+        // Replace Destinations set for this trip (simple, consistent approach for v1)
+        var existing = await _db.Destinations
+            .Where(d => d.TripId == trip.Id.Value)
+            .ToListAsync(ct);
+
+        _db.Destinations.RemoveRange(existing);
+
+        var newRecs = trip.DestinationProposals.Select(p => new DestinationRecord
+        {
+            DestinationId = p.Id.Value,
+            TripId = trip.Id.Value,
+            Title = p.Title,
+            Description = p.Description,
+            Images = p.ImageUrls.Select(u => new DestinationImageRecord { Url = u }).ToList(),
+            Votes = p.VotesBy.Select(v => new DestinationVoteRecord { UserId = v.Value }).ToList()
+        });
+
+        await _db.Destinations.AddRangeAsync(newRecs, ct);
+
+        // Note: UnitOfWork.SaveChangesAsync() will be called by the application layer.
     }
 }

@@ -49,6 +49,10 @@ public partial class App : Application
                         opts.BaseAddress = baseAddr;
                     });
 
+                    // Destinations API
+                    services.AddSingleton<DestinationsViewModel>();
+                    services.AddDestinationsClient();
+                    
                     // MVVM
                     services.AddSingleton<LoginViewModel>();
                     services.AddSingleton<MainViewModel>();

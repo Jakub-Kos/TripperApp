@@ -8,6 +8,7 @@ public sealed class TripRecord
 
     public List<TripParticipantRecord> Participants { get; set; } = new();
     public List<DateOptionRecord> DateOptions { get; set; } = new();
+    public ICollection<DestinationRecord> Destinations { get; set; } = new List<DestinationRecord>();
 }
 
 public sealed class TripParticipantRecord

@@ -1,4 +1,6 @@
 ﻿using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TripPlanner.Client.Abstractions;
@@ -7,7 +9,7 @@ using TripPlanner.Core.Contracts.Contracts.V1.Trips;
 
 namespace TripPlanner.Wpf.ViewModels;
 
-public partial class MainViewModel : ObservableObject
+public partial class MainViewModel : ObservableObject, INotifyPropertyChanged
 {
     private readonly ITripPlannerClient _client;
 
@@ -29,9 +31,27 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _voteUserId = "00000000-0000-0000-0000-000000000002";
     [ObservableProperty] private string? _selectedDateOptionId;
 
-    public MainViewModel(ITripPlannerClient client)
+    public DestinationsViewModel DestinationsVm { get; }
+    
+    public MainViewModel(ITripPlannerClient client, DestinationsViewModel destinationsVm)
     {
         _client = client;
+        DestinationsVm = destinationsVm;
+    }
+    
+    private string? _selectedTripId;
+    public string? SelectedTripId
+    {
+        get => _selectedTripId;
+        set
+        {
+            if (_selectedTripId == value) return;
+            _selectedTripId = value;
+            OnPropertyChanged();
+            DestinationsVm.TripId = _selectedTripId ?? string.Empty;     // or DestinationsVm.SetTrip(_selectedTripId)
+            // optionally trigger an initial load:
+            ((ICommand)DestinationsVm.RefreshCommand).Execute(null);
+        }
     }
 
     [RelayCommand]
@@ -48,7 +68,12 @@ public partial class MainViewModel : ObservableObject
 
     partial void OnSelectedTripChanged(TripDto? value)
     {
+        // Load summary in background (as you already do)
         _ = LoadSummaryAsync(value?.TripId);
+
+        // Wire Destinations tab immediately using the selected trip id (string)
+        DestinationsVm.TripId = value?.TripId ?? string.Empty;
+        _ = DestinationsVm.RefreshCommand;
     }
 
     private async Task LoadSummaryAsync(string? tripId)

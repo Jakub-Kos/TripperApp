@@ -20,7 +20,7 @@ public sealed class CastVoteHandler
 
         var ok = await _repo.CastVote(new TripId(t), new DateOptionId(d), new UserId(u), ct);
         if (!ok) return false;
-        await _uow.SaveChanges(ct);
+        await _uow.SaveChangesAsync(ct);
         return true;
     }
 }

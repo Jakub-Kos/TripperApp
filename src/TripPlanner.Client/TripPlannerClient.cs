@@ -1,8 +1,10 @@
 ﻿using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using TripPlanner.Client.Abstractions;
 using TripPlanner.Client.Errors;
 using TripPlanner.Core.Contracts.Common;
+using TripPlanner.Core.Contracts.Contracts.V1.Destinations;
 using TripPlanner.Core.Contracts.Contracts.V1.Trips;
 
 namespace TripPlanner.Client;
@@ -66,6 +68,63 @@ public sealed class TripPlannerClient(HttpClient http) : ITripPlannerClient
         if (res.StatusCode == HttpStatusCode.NotFound) return false;
         await ThrowIfError(res, "Failed to cast vote.", ct);
         return false;
+    }
+    
+    public async Task<IReadOnlyList<DestinationProposalDto>?> GetDestinationsAsync(string tripId, CancellationToken ct = default)
+    {
+        var res = await http.GetAsync($"/api/v1/trips/{tripId}/destinations", ct);
+        if (res.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
+        res.EnsureSuccessStatusCode();
+        return await res.Content.ReadFromJsonAsync<IReadOnlyList<DestinationProposalDto>>(cancellationToken: ct);
+    }
+
+    public async Task<string?> ProposeDestinationAsync(string tripId, ProposeDestinationRequest request, CancellationToken ct = default)
+    {
+        var res = await http.PostAsJsonAsync($"/api/v1/trips/{tripId}/destinations", request, ct);
+
+        if (res.StatusCode == HttpStatusCode.NotFound)
+            return null; // trip not found
+
+        // Throw for other non-success codes so VM can display the message
+        if (!res.IsSuccessStatusCode)
+        {
+            var body = await res.Content.ReadAsStringAsync(ct);
+            throw new HttpRequestException($"Propose destination failed: {(int)res.StatusCode} {res.ReasonPhrase}\n{body}");
+        }
+
+        // First try response body: { destinationId: "GUID" }
+        var stream = await res.Content.ReadAsStreamAsync(ct);
+        if (stream.CanRead && stream.Length > 0)
+        {
+            using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
+            if (doc.RootElement.TryGetProperty("destinationId", out var idEl))
+                return idEl.GetString();
+        }
+
+        // Fallback to Location header: /api/v1/trips/{tripId}/destinations/{id}
+        var loc = res.Headers.Location;
+        if (loc != null)
+        {
+            var last = loc.Segments?.LastOrDefault();
+            if (Guid.TryParse(last?.Trim('/'), out var id))
+                return id.ToString("D");
+        }
+
+        // As a last resort, return null so VM can show a friendly message
+        return null;
+    }
+
+    public async Task<bool> VoteDestinationAsync(string tripId, string destinationId, VoteDestinationRequest request, CancellationToken ct = default)
+    {
+        var res = await http.PostAsJsonAsync($"/api/v1/trips/{tripId}/destinations/{destinationId}/votes", request, ct);
+        if (res.StatusCode == HttpStatusCode.NotFound) return false;
+
+        if (!res.IsSuccessStatusCode)
+        {
+            var body = await res.Content.ReadAsStringAsync(ct);
+            throw new HttpRequestException($"Vote failed: {(int)res.StatusCode} {res.ReasonPhrase}\n{body}");
+        }
+        return true;
     }
 
     private static async Task ThrowIfError(HttpResponseMessage res, string fallbackMessage, CancellationToken ct)

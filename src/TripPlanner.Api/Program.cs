@@ -14,9 +14,13 @@ using TripPlanner.Api.Auth;
 using TripPlanner.Api.Infrastructure.Validation;
 using TripPlanner.Api.Swagger;
 using TripPlanner.Core.Application.Application.Trips;
+using TripPlanner.Core.Application.Application.Trips.Commands;
+using TripPlanner.Core.Application.Application.Trips.Queries;
 using TripPlanner.Core.Contracts.Common;
 using TripPlanner.Core.Contracts.Contracts.Common;
+using TripPlanner.Core.Contracts.Contracts.V1.Destinations;
 using TripPlanner.Core.Contracts.Contracts.V1.Trips;
+using TripPlanner.Core.Domain.Domain.Primitives;
 using TripPlanner.Core.Validation.Validators;
 
 // ---------------------------
@@ -39,6 +43,9 @@ services.AddScoped<GetTripByIdHandler>();
 services.AddScoped<AddParticipantHandler>();
 services.AddScoped<ProposeDateOptionHandler>();
 services.AddScoped<CastVoteHandler>();
+services.AddScoped<ListDestinationsHandler>();
+services.AddScoped<ProposeDestinationHandler>();
+services.AddScoped<VoteDestinationHandler>();
 
 // Persistence (EF + SQLite)
 var cs = builder.Configuration.GetConnectionString("Default") ?? "Data Source=tripplanner.db";
@@ -78,12 +85,13 @@ app.MapGet("/", () => Results.Redirect("/swagger")).AllowAnonymous();
 // API v1 (protected group)
 // ---------------------------
 // Trips
-app.MapPost("/api/v1/trips", 
-    async (CreateTripRequest req, CreateTripHandler handler, CancellationToken ct) =>
-    {
-        var result = await handler.Handle(new CreateTripCommand(req.Name, req.OrganizerId), ct);
-        return Results.Created($"/api/v1/trips/{result.Trip.TripId}", result.Trip);
-    })
+var v1 = app.MapGroup("/api/v1");
+v1.MapPost("/trips",
+        async (CreateTripRequest req, CreateTripHandler handler, CancellationToken ct) =>
+        {
+            var result = await handler.Handle(new CreateTripCommand(req.Name, req.OrganizerId), ct);
+            return Results.Created($"/api/v1/trips/{result.Trip.TripId}", result.Trip);
+        })
     .AddEndpointFilter(new ValidationFilter<CreateTripRequest>())
     .WithTags("Trips")
     .WithName("CreateTrip")
@@ -92,47 +100,45 @@ app.MapPost("/api/v1/trips",
     .Accepts<CreateTripRequest>("application/json")
     .Produces<TripDto>(StatusCodes.Status201Created)
     .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
-    .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
-    .RequireAuthorization();
+    .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError);
 
-app.MapGet("/api/v1/trips", 
-    async (int? skip, int? take, ListTripsHandler handler, CancellationToken ct) =>
-    {
-        var trips = await handler.Handle(new ListTripsQuery(skip ?? 0, take ?? 50), ct);
-        return Results.Ok(trips);
-    })
+v1.MapGet("/trips",
+        async (int? skip, int? take, ListTripsHandler handler, CancellationToken ct) =>
+        {
+            var trips = await handler.Handle(new ListTripsQuery(skip ?? 0, take ?? 50), ct);
+            return Results.Ok(trips);
+        })
     .WithTags("Trips")
     .WithName("ListTrips")
     .WithSummary("List trips")
     .WithDescription("Returns a paged list of trips (default: 0..50).")
     .Produces<IReadOnlyList<TripDto>>(StatusCodes.Status200OK)
-    .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
-    .RequireAuthorization();
+    .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError);
 
-app.MapGet("/api/v1/trips/{tripId}", 
-    async (string tripId, GetTripByIdHandler handler, CancellationToken ct) =>
-    {
-        var dto = await handler.Handle(new GetTripByIdQuery(tripId), ct);
-        return dto is null
-            ? Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip not found"))
-            : Results.Ok(dto);
-    })
+v1.MapGet("/trips/{tripId}",
+        async (string tripId, GetTripByIdHandler handler, CancellationToken ct) =>
+        {
+            var dto = await handler.Handle(new GetTripByIdQuery(tripId), ct);
+            return dto is null
+                ? Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip not found"))
+                : Results.Ok(dto);
+        })
     .WithTags("Trips")
     .WithName("GetTripById")
     .WithSummary("Get trip details")
     .WithDescription("Returns participants and date options for the given trip.")
     .Produces<TripSummaryDto>(StatusCodes.Status200OK)
-    .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
-    .RequireAuthorization();
+    .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
 
-app.MapPost("/api/v1/trips/{tripId}/participants",
-    async (string tripId, AddParticipantRequest req, AddParticipantHandler handler, CancellationToken ct) =>
-    {
-        // keep route param validation if you want, e.g. Guid.TryParse(tripId,...)
-        var ok = await handler.Handle(new AddParticipantCommand(tripId, req.UserId), ct);
-        return ok ? Results.NoContent()
-                  : Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip not found"));
-    })
+v1.MapPost("/trips/{tripId}/participants",
+        async (string tripId, AddParticipantRequest req, AddParticipantHandler handler, CancellationToken ct) =>
+        {
+            // keep route param validation if you want, e.g. Guid.TryParse(tripId,...)
+            var ok = await handler.Handle(new AddParticipantCommand(tripId, req.UserId), ct);
+            return ok
+                ? Results.NoContent()
+                : Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip not found"));
+        })
     .AddEndpointFilter(new ValidationFilter<AddParticipantRequest>())
     .WithTags("Trips")
     .WithName("AddParticipant")
@@ -141,18 +147,17 @@ app.MapPost("/api/v1/trips/{tripId}/participants",
     .Accepts<AddParticipantRequest>("application/json")
     .Produces(StatusCodes.Status204NoContent)
     .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
-    .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
-    .RequireAuthorization();
+    .Produces<ErrorResponse>(StatusCodes.Status400BadRequest);
 
-app.MapPost("/api/v1/trips/{tripId}/date-options",
-    async (string tripId, ProposeDateRequest req, ProposeDateOptionHandler handler, CancellationToken ct) =>
-    {
-        var date = DateOnly.Parse(req.Date); // safe now thanks to validator
-        var id = await handler.Handle(new ProposeDateOptionCommand(tripId, date), ct);
-        return id is null
-            ? Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip not found"))
-            : Results.Created($"/api/v1/trips/{tripId}", new { dateOptionId = id.Value.Value.ToString("D") });
-    })
+v1.MapPost("/trips/{tripId}/date-options",
+        async (string tripId, ProposeDateRequest req, ProposeDateOptionHandler handler, CancellationToken ct) =>
+        {
+            var date = DateOnly.Parse(req.Date); // safe now thanks to validator
+            var id = await handler.Handle(new ProposeDateOptionCommand(tripId, date), ct);
+            return id is null
+                ? Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip not found"))
+                : Results.Created($"/api/v1/trips/{tripId}", new { dateOptionId = id.Value.Value.ToString("D") });
+        })
     .AddEndpointFilter(new ValidationFilter<ProposeDateRequest>())
     .WithTags("Trips")
     .WithName("ProposeDateOption")
@@ -161,16 +166,16 @@ app.MapPost("/api/v1/trips/{tripId}/date-options",
     .Accepts<ProposeDateRequest>("application/json")
     .Produces(StatusCodes.Status201Created)
     .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
-    .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
-    .RequireAuthorization();
+    .Produces<ErrorResponse>(StatusCodes.Status400BadRequest);
 
-app.MapPost("/api/v1/trips/{tripId}/votes",
-    async (string tripId, CastVoteRequest req, CastVoteHandler handler, CancellationToken ct) =>
-    {
-        var ok = await handler.Handle(new CastVoteCommand(tripId, req.DateOptionId, req.UserId), ct);
-        return ok ? Results.NoContent()
-                  : Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip or option not found"));
-    })
+v1.MapPost("/trips/{tripId}/votes",
+        async (string tripId, CastVoteRequest req, CastVoteHandler handler, CancellationToken ct) =>
+        {
+            var ok = await handler.Handle(new CastVoteCommand(tripId, req.DateOptionId, req.UserId), ct);
+            return ok
+                ? Results.NoContent()
+                : Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip or option not found"));
+        })
     .AddEndpointFilter(new ValidationFilter<CastVoteRequest>())
     .WithTags("Trips")
     .WithName("CastVote")
@@ -179,8 +184,62 @@ app.MapPost("/api/v1/trips/{tripId}/votes",
     .Accepts<CastVoteRequest>("application/json")
     .Produces(StatusCodes.Status204NoContent)
     .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
-    .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
-    .RequireAuthorization();
+    .Produces<ErrorResponse>(StatusCodes.Status400BadRequest);
+
+// --- Destinations: list ---
+v1.MapGet("/trips/{tripId}/destinations",
+        async (string tripId, ListDestinationsHandler handler, CancellationToken ct) =>
+        {
+            var list = await handler.Handle(new ListDestinationsQuery(tripId), ct);
+            return list is null
+                ? Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip not found"))
+                : Results.Ok(list);
+        })
+    .WithTags("Trips")
+    .WithName("ListDestinations")
+    .WithSummary("List destination proposals")
+    .WithDescription("Returns all destination proposals for the trip.")
+    .Produces<IReadOnlyList<DestinationProposalDto>>(StatusCodes.Status200OK)
+    .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+
+// PROPOSE
+v1.MapPost("/trips/{tripId}/destinations",
+        async (string tripId, ProposeDestinationRequest req, ProposeDestinationHandler handler, CancellationToken ct) =>
+        {
+            var id = await handler.Handle(new ProposeDestinationCommand(tripId, req.Title, req.Description, req.ImageUrls), ct);
+            return id is null
+                ? Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip not found"))
+                : Results.Created($"/api/v1/trips/{tripId}/destinations/{id.Value.Value:D}",
+                    new { destinationId = id.Value.Value.ToString("D") });
+        })
+    .AddEndpointFilter(new ValidationFilter<ProposeDestinationRequest>())
+    .WithTags("Trips")
+    .WithName("ProposeDestination")
+    .WithSummary("Propose destination")
+    .WithDescription("Proposes a destination with title, optional description, and image URLs.")
+    .Accepts<ProposeDestinationRequest>("application/json")
+    .Produces(StatusCodes.Status201Created)
+    .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+    .Produces<ErrorResponse>(StatusCodes.Status400BadRequest);
+
+// VOTE
+v1.MapPost("/trips/{tripId}/destinations/{destinationId}/votes",
+        async (string tripId, string destinationId, VoteDestinationRequest req, VoteDestinationHandler handler, CancellationToken ct) =>
+        {
+            var ok = await handler.Handle(new VoteDestinationCommand(tripId, destinationId, req.UserId), ct);
+            return ok
+                ? Results.NoContent()
+                : Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip or destination not found"));
+        })
+    .AddEndpointFilter(new ValidationFilter<VoteDestinationRequest>())
+    .WithTags("Trips")
+    .WithName("VoteDestination")
+    .WithSummary("Cast a vote for a destination")
+    .WithDescription("Casts a vote for a specific destination (GUID in route) as the given user (GUID).")
+    .Accepts<VoteDestinationRequest>("application/json")
+    .Produces(StatusCodes.Status204NoContent)
+    .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+    .Produces<ErrorResponse>(StatusCodes.Status400BadRequest);
 
 // ---------------------------
 // AUTH endpoints (public)
@@ -254,7 +313,6 @@ app.MapPost("/auth/logout", async (RefreshRequest req, IUserRepository users, Ca
 }).AllowAnonymous();
 
 // ---- PROTECT existing API ----
-app.MapGroup("/api/v1")
-    .RequireAuthorization(); // everything under /api/v1 now requires a valid JWT
+v1.RequireAuthorization(); // everything under /api/v1 now requires a valid JWT
 
 app.Run();

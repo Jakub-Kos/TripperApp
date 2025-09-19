@@ -12,7 +12,7 @@ public sealed class ListTripsHandler
 
     public async Task<IReadOnlyList<TripDto>> Handle(ListTripsQuery q, CancellationToken ct)
     {
-        var list = await _trips.List(q.Skip, q.Take, ct);
+        var list = await _trips.ListAsync(q.Skip, q.Take, ct);
         return list.Select(t => new TripDto(t.Id.Value.ToString("D"), t.Name, t.OrganizerId.Value.ToString("D"))).ToList();
     }
 }
