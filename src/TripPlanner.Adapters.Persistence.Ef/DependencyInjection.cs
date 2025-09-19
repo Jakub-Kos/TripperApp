@@ -14,6 +14,7 @@ public static class DependencyInjection
         services.AddDbContext<AppDbContext>(o => o.UseSqlite(connectionString));
         services.AddScoped<ITripRepository, TripRepository>();
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
+        services.AddScoped<IUserRepository, UserRepository>();
         return services;
     }
 }

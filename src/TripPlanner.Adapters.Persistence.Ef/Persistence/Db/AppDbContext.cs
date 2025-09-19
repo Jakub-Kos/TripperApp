@@ -11,15 +11,44 @@ public sealed class AppDbContext : DbContext
     public DbSet<DateOptionRecord> DateOptions => Set<DateOptionRecord>();
     public DbSet<DateVoteRecord> DateVotes => Set<DateVoteRecord>();
     
+    public DbSet<UserRecord> Users => Set<UserRecord>();
+    public DbSet<RefreshTokenRecord> RefreshTokens => Set<RefreshTokenRecord>();
+    
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
     protected override void OnModelCreating(ModelBuilder b)
     {
+        base.OnModelCreating(b);
+        
+        b.Entity<UserRecord>(ConfigureUser);
+        b.Entity<RefreshTokenRecord>(ConfigureRefreshToken);
         b.Entity<TripRecord>(ConfigureTrip);
         b.Entity<TripParticipantRecord>(ConfigureParticipant);
         b.Entity<DateOptionRecord>(ConfigureDateOption);
         b.Entity<DateVoteRecord>(ConfigureDateVote);
     }
+
+    private static void ConfigureUser(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<UserRecord> e)
+    {
+        e.HasKey(x => x.UserId);
+        e.Property(x => x.Email).IsRequired();
+        e.HasIndex(x => x.Email).IsUnique();
+        e.Property(x => x.DisplayName).IsRequired();
+        e.Property(x => x.PasswordHash).IsRequired();
+    }
+
+    private static void ConfigureRefreshToken(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<RefreshTokenRecord> e)
+    {
+        e.HasKey(x => x.Id);
+        e.Property(x => x.Token).IsRequired();
+        e.HasIndex(x => x.Token).IsUnique();
+        e.Property(x => x.ExpiresAt).IsRequired();
+        e.HasOne(x => x.User)
+            .WithMany(u => u.RefreshTokens)
+            .HasForeignKey(x => x.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+    
     private static void ConfigureTrip(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<TripRecord> e)
     {
         e.ToTable("Trips");

@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using TripPlanner.Client;
+using TripPlanner.Wpf.Auth;
 using TripPlanner.Wpf.ViewModels;
 using ViewsMainWindow = TripPlanner.Wpf.Views.MainWindow;
 
@@ -41,6 +42,13 @@ public partial class App : Application
                 {
                     var vm = sp.GetRequiredService<MainViewModel>();
                     return new ViewsMainWindow { DataContext = vm };
+                });
+                
+                services.AddSingleton<TokenStore>();
+                services.AddHttpClient<AuthClient>(client =>
+                {
+                    var baseAddr = ctx.Configuration.GetSection("TripPlanner")["BaseAddress"] ?? "http://localhost:5162";
+                    client.BaseAddress = new Uri(baseAddr);
                 });
             })
             .Build();

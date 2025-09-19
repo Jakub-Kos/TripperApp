@@ -1,31 +1,38 @@
-using TripPlanner.Adapters.Persistence.Ef;
-// using TripPlanner.Adapters.Persistence.InMemory;
-using TripPlanner.Core.Contracts.Common;
-using TripPlanner.Core.Contracts.Contracts.V1.Trips;
-using TripPlanner.Core.Application.Application.Trips;
+using System.Text;
 using FluentValidation;
-using TripPlanner.Api.Infrastructure.Validation;
-using TripPlanner.Core.Validation.Validators;
-
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-using TripPlanner.Api.Swagger;
-using TripPlanner.Api.Swagger.Examples;
-using Swashbuckle.AspNetCore.Filters; // not strictly required, but fine
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using TripPlanner.Adapters.Persistence.Ef.Persistence.Db; // if you later customize WithOpenApi
 
+using TripPlanner.Adapters.Persistence.Ef;
+using TripPlanner.Adapters.Persistence.Ef.Persistence.Db;
+using TripPlanner.Adapters.Persistence.Ef.Persistence.Models;
+using TripPlanner.Adapters.Persistence.Ef.Persistence.Repositories;
+
+using TripPlanner.Api.Auth;
+using TripPlanner.Api.Infrastructure.Validation;
+using TripPlanner.Api.Swagger;
+using TripPlanner.Core.Application.Application.Trips;
+using TripPlanner.Core.Contracts.Common;
+using TripPlanner.Core.Contracts.Contracts.Common;
+using TripPlanner.Core.Contracts.Contracts.V1.Trips;
+using TripPlanner.Core.Validation.Validators;
+
+// ---------------------------
+// BUILD + SERVICES (register)
+// ---------------------------
 var builder = WebApplication.CreateBuilder(args);
 var services = builder.Services;
 
+// Validation
 services.AddValidatorsFromAssemblyContaining<CreateTripRequestValidator>();
 
+// Swagger
 services.AddEndpointsApiExplorer();
 services.AddTripPlannerSwagger();
-// services.AddEndpointsApiExplorer();
-// services.AddSwaggerGen();
 
-// Handlers (existing + new)
+// Handlers
 services.AddScoped<CreateTripHandler>();
 services.AddScoped<ListTripsHandler>();
 services.AddScoped<GetTripByIdHandler>();
@@ -33,19 +40,44 @@ services.AddScoped<AddParticipantHandler>();
 services.AddScoped<ProposeDateOptionHandler>();
 services.AddScoped<CastVoteHandler>();
 
-// Persistence (EF)
+// Persistence (EF + SQLite)
 var cs = builder.Configuration.GetConnectionString("Default") ?? "Data Source=tripplanner.db";
 services.AddEfPersistence(cs);
 
+// --- AUTH ---
+services.AddJwtAuth(builder.Configuration);
+
+// ---------------
+// BUILD the app
+// ---------------
 var app = builder.Build();
 
+// Auto-migrate DB
 using (var scope = app.Services.CreateScope())
     await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
 
+// ---------------------------
+// MIDDLEWARE (post-Build())
+// ---------------------------
 app.UseSwagger();
-app.UseSwaggerUI();
+app.UseSwaggerUI(c =>
+{
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "TripPlanner API v1");
+    c.RoutePrefix = "swagger";
+});
 
-// Existing
+// Auth pipeline – order matters
+app.UseAuthentication();
+app.UseAuthorization();
+
+// Public endpoints
+app.MapGet("/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
+app.MapGet("/", () => Results.Redirect("/swagger")).AllowAnonymous();
+
+// ---------------------------
+// API v1 (protected group)
+// ---------------------------
+// Trips
 app.MapPost("/api/v1/trips", 
     async (CreateTripRequest req, CreateTripHandler handler, CancellationToken ct) =>
     {
@@ -60,7 +92,8 @@ app.MapPost("/api/v1/trips",
     .Accepts<CreateTripRequest>("application/json")
     .Produces<TripDto>(StatusCodes.Status201Created)
     .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
-    .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError);
+    .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
+    .RequireAuthorization();
 
 app.MapGet("/api/v1/trips", 
     async (int? skip, int? take, ListTripsHandler handler, CancellationToken ct) =>
@@ -73,9 +106,9 @@ app.MapGet("/api/v1/trips",
     .WithSummary("List trips")
     .WithDescription("Returns a paged list of trips (default: 0..50).")
     .Produces<IReadOnlyList<TripDto>>(StatusCodes.Status200OK)
-    .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError);
+    .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError)
+    .RequireAuthorization();
 
-// NEW: GetTripById
 app.MapGet("/api/v1/trips/{tripId}", 
     async (string tripId, GetTripByIdHandler handler, CancellationToken ct) =>
     {
@@ -89,9 +122,9 @@ app.MapGet("/api/v1/trips/{tripId}",
     .WithSummary("Get trip details")
     .WithDescription("Returns participants and date options for the given trip.")
     .Produces<TripSummaryDto>(StatusCodes.Status200OK)
-    .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+    .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+    .RequireAuthorization();
 
-// NEW: AddParticipant
 app.MapPost("/api/v1/trips/{tripId}/participants",
     async (string tripId, AddParticipantRequest req, AddParticipantHandler handler, CancellationToken ct) =>
     {
@@ -108,9 +141,9 @@ app.MapPost("/api/v1/trips/{tripId}/participants",
     .Accepts<AddParticipantRequest>("application/json")
     .Produces(StatusCodes.Status204NoContent)
     .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
-    .Produces<ErrorResponse>(StatusCodes.Status400BadRequest);
+    .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+    .RequireAuthorization();
 
-// NEW: ProposeDateOption
 app.MapPost("/api/v1/trips/{tripId}/date-options",
     async (string tripId, ProposeDateRequest req, ProposeDateOptionHandler handler, CancellationToken ct) =>
     {
@@ -128,9 +161,9 @@ app.MapPost("/api/v1/trips/{tripId}/date-options",
     .Accepts<ProposeDateRequest>("application/json")
     .Produces(StatusCodes.Status201Created)
     .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
-    .Produces<ErrorResponse>(StatusCodes.Status400BadRequest);
+    .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+    .RequireAuthorization();
 
-// NEW: CastVote
 app.MapPost("/api/v1/trips/{tripId}/votes",
     async (string tripId, CastVoteRequest req, CastVoteHandler handler, CancellationToken ct) =>
     {
@@ -146,6 +179,82 @@ app.MapPost("/api/v1/trips/{tripId}/votes",
     .Accepts<CastVoteRequest>("application/json")
     .Produces(StatusCodes.Status204NoContent)
     .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
-    .Produces<ErrorResponse>(StatusCodes.Status400BadRequest);
+    .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+    .RequireAuthorization();
+
+// ---------------------------
+// AUTH endpoints (public)
+// ---------------------------
+app.MapPost("/auth/register", async (RegisterRequest req, IUserRepository users, CancellationToken ct) =>
+{
+    var existing = await users.FindByEmail(req.Email, ct);
+    if (existing is not null)
+        return Results.Conflict(new { error = "Email already registered." });
+
+    var hash = BCrypt.Net.BCrypt.HashPassword(req.Password);
+    var user = new UserRecord
+    {
+        Email = req.Email,
+        DisplayName = req.DisplayName,
+        PasswordHash = hash
+    };
+    await users.Add(user, ct);
+    return Results.Created($"/users/{user.UserId}", new { userId = user.UserId, user.DisplayName, user.Email });
+}).AllowAnonymous();
+
+app.MapPost("/auth/login", async (LoginRequest req, IUserRepository users, IJwtService jwt, JwtOptions jwtOpts, CancellationToken ct) =>
+{
+    var user = await users.FindByEmail(req.Email, ct);
+    if (user is null || !BCrypt.Net.BCrypt.Verify(req.Password, user.PasswordHash))
+        return Results.Unauthorized();
+
+    var (access, exp) = jwt.IssueAccessToken(user.UserId, user.Email);
+    var refresh = jwt.IssueRefreshToken();
+
+    await users.AddRefreshToken(new RefreshTokenRecord
+    {
+        UserId = user.UserId,
+        Token = refresh,
+        ExpiresAt = DateTimeOffset.UtcNow.AddDays(jwtOpts.RefreshTokenDays)
+    }, ct);
+
+    return Results.Ok(new LoginResponse(access, refresh, (int)TimeSpan.FromMinutes(jwtOpts.AccessTokenMinutes).TotalSeconds));
+}).AllowAnonymous();
+
+app.MapPost("/auth/refresh", async (RefreshRequest req, IUserRepository users, IJwtService jwt, JwtOptions jwtOpts, CancellationToken ct) =>
+{
+    var token = await users.FindRefreshToken(req.RefreshToken, ct);
+    if (token is null || token.RevokedAt is not null || token.ExpiresAt <= DateTimeOffset.UtcNow)
+        return Results.Unauthorized();
+
+    var user = token.User!;
+    var (access, _) = jwt.IssueAccessToken(user.UserId, user.Email);
+    var newRefresh = jwt.IssueRefreshToken();
+
+    // revoke old, add new
+    token.RevokedAt = DateTimeOffset.UtcNow;
+    await users.AddRefreshToken(new RefreshTokenRecord
+    {
+        UserId = user.UserId,
+        Token = newRefresh,
+        ExpiresAt = DateTimeOffset.UtcNow.AddDays(jwtOpts.RefreshTokenDays)
+    }, ct);
+    await users.SaveChanges(ct);
+
+    return Results.Ok(new RefreshResponse(access, newRefresh, (int)TimeSpan.FromMinutes(jwtOpts.AccessTokenMinutes).TotalSeconds));
+}).AllowAnonymous();
+
+app.MapPost("/auth/logout", async (RefreshRequest req, IUserRepository users, CancellationToken ct) =>
+{
+    var token = await users.FindRefreshToken(req.RefreshToken, ct);
+    if (token is null) return Results.NoContent();
+    token.RevokedAt = DateTimeOffset.UtcNow;
+    await users.SaveChanges(ct);
+    return Results.NoContent();
+}).AllowAnonymous();
+
+// ---- PROTECT existing API ----
+app.MapGroup("/api/v1")
+    .RequireAuthorization(); // everything under /api/v1 now requires a valid JWT
 
 app.Run();
