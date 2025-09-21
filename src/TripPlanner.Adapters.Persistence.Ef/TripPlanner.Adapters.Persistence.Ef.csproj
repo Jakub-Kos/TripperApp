@@ -15,5 +15,6 @@
         <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.0">
             <PrivateAssets>All</PrivateAssets>
         </PackageReference>
+        <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="9.0.0" />
     </ItemGroup>
 </Project>

@@ -12,6 +12,10 @@ public static class ServiceCollectionExtensions
     {
         var opts = new JwtOptions();
         cfg.GetSection("Jwt").Bind(opts);
+        
+        if (string.IsNullOrWhiteSpace(opts.Key) || Encoding.UTF8.GetByteCount(opts.Key) < 32)
+            throw new InvalidOperationException("Jwt:Key must be at least 32 bytes.");
+        
         services.AddSingleton(opts);
         services.AddSingleton<IJwtService, JwtService>();
 

@@ -1,4 +1,4 @@
-﻿namespace TripPlanner.Adapters.Persistence.Ef.Persistence.Models;
+﻿namespace TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Destination;
 
 public sealed class DestinationVoteRecord
 {

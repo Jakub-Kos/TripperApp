@@ -8,6 +8,7 @@ using Microsoft.OpenApi.Models;
 using TripPlanner.Adapters.Persistence.Ef;
 using TripPlanner.Adapters.Persistence.Ef.Persistence.Db;
 using TripPlanner.Adapters.Persistence.Ef.Persistence.Models;
+using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Common;
 using TripPlanner.Adapters.Persistence.Ef.Persistence.Repositories;
 
 using TripPlanner.Api.Auth;
@@ -49,8 +50,9 @@ services.AddScoped<VoteDestinationHandler>();
 
 // Persistence (EF + SQLite)
 var cs = builder.Configuration.GetConnectionString("Default") ?? "Data Source=tripplanner.db";
-services.AddEfPersistence(cs);
-
+services.AddEfPersistence(
+    builder.Configuration.GetConnectionString("Default")!,
+    builder.Environment);
 // --- AUTH ---
 services.AddJwtAuth(builder.Configuration);
 
@@ -60,8 +62,23 @@ services.AddJwtAuth(builder.Configuration);
 var app = builder.Build();
 
 // Auto-migrate DB
-using (var scope = app.Services.CreateScope())
-    await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
+if (app.Environment.IsDevelopment())
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    try
+    {
+        await db.Database.MigrateAsync();
+    }
+    catch (Microsoft.Data.Sqlite.SqliteException ex)
+        when (ex.SqliteErrorCode == 1 && ex.Message.Contains("duplicate column name"))
+    {
+        // local DB drifted; rebuild
+        var path = Path.Combine(AppContext.BaseDirectory, "tripplanner.db");
+        if (File.Exists(path)) File.Delete(path);
+        await db.Database.MigrateAsync();
+    }
+}
 
 // ---------------------------
 // MIDDLEWARE (post-Build())
@@ -131,13 +148,12 @@ v1.MapGet("/trips/{tripId}",
     .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
 
 v1.MapPost("/trips/{tripId}/participants",
-        async (string tripId, AddParticipantRequest req, AddParticipantHandler handler, CancellationToken ct) =>
+        async (Guid tripId, AddParticipantRequest req, AddParticipantHandler handler, CancellationToken ct) =>
         {
-            // keep route param validation if you want, e.g. Guid.TryParse(tripId,...)
-            var ok = await handler.Handle(new AddParticipantCommand(tripId, req.UserId), ct);
-            return ok
-                ? Results.NoContent()
-                : Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip not found"));
+            if (req.UserId is not Guid userId)            
+                return Results.BadRequest("UserId must be a GUID.");
+            var ok = await handler.Handle(new AddParticipantCommand(tripId.ToString(), userId.ToString()), ct);
+            return ok ? Results.NoContent() : Results.NotFound();
         })
     .AddEndpointFilter(new ValidationFilter<AddParticipantRequest>())
     .WithTags("Trips")
@@ -261,46 +277,56 @@ app.MapPost("/auth/register", async (RegisterRequest req, IUserRepository users,
     return Results.Created($"/users/{user.UserId}", new { userId = user.UserId, user.DisplayName, user.Email });
 }).AllowAnonymous();
 
-app.MapPost("/auth/login", async (LoginRequest req, IUserRepository users, IJwtService jwt, JwtOptions jwtOpts, CancellationToken ct) =>
+app.MapPost("/auth/login", async (LoginRequest req, IUserRepository users, IJwtService jwt, JwtOptions jwtOptions, IConfiguration cfg, CancellationToken ct) =>
 {
     var user = await users.FindByEmail(req.Email, ct);
     if (user is null || !BCrypt.Net.BCrypt.Verify(req.Password, user.PasswordHash))
         return Results.Unauthorized();
 
     var (access, exp) = jwt.IssueAccessToken(user.UserId, user.Email);
-    var refresh = jwt.IssueRefreshToken();
+    var rawRefresh = jwt.IssueRefreshToken();
+    
+    var refreshPepper = cfg["Jwt:RefreshPepper"];
+    var refreshHash = TokenHasher.Hash(rawRefresh, refreshPepper);
 
     await users.AddRefreshToken(new RefreshTokenRecord
     {
         UserId = user.UserId,
-        Token = refresh,
-        ExpiresAt = DateTimeOffset.UtcNow.AddDays(jwtOpts.RefreshTokenDays)
+        Token = refreshHash,
+        ExpiresAt = DateTimeOffset.UtcNow.AddDays(jwtOptions.RefreshTokenDays)
     }, ct);
 
-    return Results.Ok(new LoginResponse(access, refresh, (int)TimeSpan.FromMinutes(jwtOpts.AccessTokenMinutes).TotalSeconds));
+    return Results.Ok(new LoginResponse(access, rawRefresh, (int)TimeSpan.FromMinutes(jwtOptions.AccessTokenMinutes).TotalSeconds));
 }).AllowAnonymous();
 
-app.MapPost("/auth/refresh", async (RefreshRequest req, IUserRepository users, IJwtService jwt, JwtOptions jwtOpts, CancellationToken ct) =>
+app.MapPost("/auth/refresh", async (RefreshRequest req, IUserRepository users, IJwtService jwt, JwtOptions jwtOpts, IConfiguration cfg, CancellationToken ct) =>
 {
-    var token = await users.FindRefreshToken(req.RefreshToken, ct);
+    var pepper = cfg["Jwt:RefreshPepper"];
+    var presentedHash = TokenHasher.Hash(req.RefreshToken, pepper);
+
+    var token = await users.FindRefreshToken(presentedHash, ct);
     if (token is null || token.RevokedAt is not null || token.ExpiresAt <= DateTimeOffset.UtcNow)
         return Results.Unauthorized();
 
     var user = token.User!;
     var (access, _) = jwt.IssueAccessToken(user.UserId, user.Email);
-    var newRefresh = jwt.IssueRefreshToken();
 
-    // revoke old, add new
+    var newRefreshRaw = jwt.IssueRefreshToken();
+    var newRefreshHash = TokenHasher.Hash(newRefreshRaw, pepper);
+
     token.RevokedAt = DateTimeOffset.UtcNow;
     await users.AddRefreshToken(new RefreshTokenRecord
     {
         UserId = user.UserId,
-        Token = newRefresh,
+        Token = newRefreshHash,
         ExpiresAt = DateTimeOffset.UtcNow.AddDays(jwtOpts.RefreshTokenDays)
     }, ct);
     await users.SaveChanges(ct);
 
-    return Results.Ok(new RefreshResponse(access, newRefresh, (int)TimeSpan.FromMinutes(jwtOpts.AccessTokenMinutes).TotalSeconds));
+    return Results.Ok(new RefreshResponse(
+        access,
+        newRefreshRaw,
+        (int)TimeSpan.FromMinutes(jwtOpts.AccessTokenMinutes).TotalSeconds));
 }).AllowAnonymous();
 
 app.MapPost("/auth/logout", async (RefreshRequest req, IUserRepository users, CancellationToken ct) =>

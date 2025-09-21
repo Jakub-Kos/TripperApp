@@ -1,39 +1,40 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using TripPlanner.Adapters.Persistence.Ef.Persistence.Models;
+using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Common;
+using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Date;
+using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Destination;
+using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Trip;
 
 namespace TripPlanner.Adapters.Persistence.Ef.Persistence.Db;
 
 public sealed class AppDbContext : DbContext
 {
     public DbSet<TripRecord> Trips => Set<TripRecord>();
-    public DbSet<TripParticipantRecord> TripParticipants => Set<TripParticipantRecord>();
-
+    public DbSet<ParticipantRecord> Participants => Set<ParticipantRecord>();
     public DbSet<DateOptionRecord> DateOptions => Set<DateOptionRecord>();
     public DbSet<DateVoteRecord> DateVotes => Set<DateVoteRecord>();
     public DbSet<DestinationRecord> Destinations => Set<DestinationRecord>();
     public DbSet<DestinationImageRecord> DestinationImages => Set<DestinationImageRecord>();
     public DbSet<DestinationVoteRecord> DestinationVotes => Set<DestinationVoteRecord>();
-    
     public DbSet<UserRecord> Users => Set<UserRecord>();
     public DbSet<RefreshTokenRecord> RefreshTokens => Set<RefreshTokenRecord>();
     
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
-    protected override void OnModelCreating(ModelBuilder b)
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        base.OnModelCreating(b);
+        base.OnModelCreating(modelBuilder);
         
-        b.Entity<UserRecord>(ConfigureUser);
-        b.Entity<RefreshTokenRecord>(ConfigureRefreshToken);
-        b.Entity<TripRecord>(ConfigureTrip);
-        b.Entity<TripParticipantRecord>(ConfigureParticipant);
+        modelBuilder.Entity<UserRecord>(ConfigureUser);
+        modelBuilder.Entity<RefreshTokenRecord>(ConfigureRefreshToken);
+        modelBuilder.Entity<TripRecord>(ConfigureTrip);
+        modelBuilder.Entity<ParticipantRecord>(ConfigureParticipant);
         
-        b.Entity<DateOptionRecord>(ConfigureDateOption);
-        b.Entity<DateVoteRecord>(ConfigureDateVote);
+        modelBuilder.Entity<DateOptionRecord>(ConfigureDateOption);
+        modelBuilder.Entity<DateVoteRecord>(ConfigureDateVote);
 
-        b.Entity<DestinationRecord>(ConfigureDestination);
-        b.Entity<DestinationImageRecord>(ConfigureDestinationImage);
-        b.Entity<DestinationVoteRecord>(ConfigureDestinationVote);
+        modelBuilder.Entity<DestinationRecord>(ConfigureDestination);
+        modelBuilder.Entity<DestinationImageRecord>(ConfigureDestinationImage);
+        modelBuilder.Entity<DestinationVoteRecord>(ConfigureDestinationVote);
     }
 
     private static void ConfigureUser(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<UserRecord> e)
@@ -63,9 +64,11 @@ public sealed class AppDbContext : DbContext
         e.HasKey(x => x.TripId);
         e.Property(x => x.Name).IsRequired().HasMaxLength(200);
         e.Property(x => x.OrganizerId).IsRequired();
+        e.Property(x => x.CreatedAt).IsRequired();
+        e.Property(x => x.DescriptionMarkdown).HasDefaultValue("");
 
         e.HasMany(x => x.Participants)
-            .WithOne()
+            .WithOne(p => p.Trip)
             .HasForeignKey(x => x.TripId)
             .OnDelete(DeleteBehavior.Cascade);
 
@@ -75,12 +78,12 @@ public sealed class AppDbContext : DbContext
             .OnDelete(DeleteBehavior.Cascade);
     }
 
-    private static void ConfigureParticipant(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<TripParticipantRecord> e)
+    private static void ConfigureParticipant(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<ParticipantRecord> e)
     {
         e.ToTable("TripParticipants");
         e.HasKey(x => x.Id);
         e.Property(x => x.TripId).IsRequired();
-        e.Property(x => x.UserId).IsRequired();
+        e.Property(x => x.DisplayName).IsRequired();
         e.HasIndex(x => new { x.TripId, x.UserId }).IsUnique();
     }
 

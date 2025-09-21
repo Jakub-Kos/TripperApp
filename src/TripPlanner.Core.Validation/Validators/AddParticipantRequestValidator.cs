@@ -8,7 +8,6 @@ public sealed class AddParticipantRequestValidator : AbstractValidator<AddPartic
     public AddParticipantRequestValidator()
     {
         RuleFor(x => x.UserId)
-            .NotEmpty().WithMessage("UserId is required.")
-            .Must(s => Guid.TryParse(s, out _)).WithMessage("UserId must be a GUID.");
+            .NotEmpty().WithMessage("UserId is required.");
     }
 }

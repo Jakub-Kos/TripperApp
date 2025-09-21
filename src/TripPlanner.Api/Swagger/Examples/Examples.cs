@@ -31,7 +31,7 @@ public sealed class TripSummaryDtoExample : IExamplesProvider<TripSummaryDto>
 public sealed class AddParticipantRequestExample : IExamplesProvider<AddParticipantRequest>
 {
     public AddParticipantRequest GetExamples() =>
-        new("00000000-0000-0000-0000-000000000002");
+        new(Guid.Parse("00000000-0000-0000-0000-000000000002"), "Example Name");
 }
 
 public sealed class ProposeDateRequestExample : IExamplesProvider<ProposeDateRequest>

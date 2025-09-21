@@ -8,7 +8,7 @@ namespace TripPlanner.Api.Auth;
 
 public interface IJwtService
 {
-    (string token, DateTimeOffset expiresAt) IssueAccessToken(string userId, string email, IEnumerable<Claim>? extraClaims = null);
+    (string token, DateTimeOffset expiresAt) IssueAccessToken(Guid userId, string email, IEnumerable<Claim>? extraClaims = null);
     string IssueRefreshToken();
 }
 
@@ -16,7 +16,7 @@ public sealed class JwtService(JwtOptions opts) : IJwtService
 {
     private readonly JwtSecurityTokenHandler _handler = new();
 
-    public (string token, DateTimeOffset expiresAt) IssueAccessToken(string userId, string email, IEnumerable<Claim>? extraClaims = null)
+    public (string token, DateTimeOffset expiresAt) IssueAccessToken(Guid userId, string email, IEnumerable<Claim>? extraClaims = null)
     {
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(opts.Key));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -25,7 +25,7 @@ public sealed class JwtService(JwtOptions opts) : IJwtService
 
         var claims = new List<Claim>
         {
-            new(JwtRegisteredClaimNames.Sub, userId),
+            new(JwtRegisteredClaimNames.Sub, userId.ToString()),
             new(JwtRegisteredClaimNames.Email, email),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N"))
         };

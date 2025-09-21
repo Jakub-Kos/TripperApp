@@ -1,4 +1,6 @@
-﻿namespace TripPlanner.Adapters.Persistence.Ef.Persistence.Models;
+﻿using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Trip;
+
+namespace TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Destination;
 
 public sealed class DestinationRecord
 {
