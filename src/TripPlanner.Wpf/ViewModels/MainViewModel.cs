@@ -29,7 +29,8 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private TripSummaryDto? _selectedSummary;
 
     // Participant & date actions
-    [ObservableProperty] private Guid _newParticipantUserId = Guid.Parse("00000000-0000-0000-0000-000000000002");
+    [ObservableProperty] private string? _newParticipantUserIdText;
+    [ObservableProperty] private string _newParticipantDisplayName = "";
     [ObservableProperty] private DateTime? _newDate = DateTime.Today.AddDays(7);
     [ObservableProperty] private string _voteUserId = "00000000-0000-0000-0000-000000000002";
     [ObservableProperty] private string? _selectedDateOptionId;
@@ -158,7 +159,17 @@ public partial class MainViewModel : ObservableObject
 
         await GuardAsync(async () =>
         {
-            var ok = await _client.AddParticipantAsync(SelectedTrip.TripId, new AddParticipantRequest(NewParticipantUserId, ""));
+            var req = Guid.TryParse(NewParticipantUserIdText, out var userId)
+                ? new AddParticipantRequest(userId, "")
+                : new AddParticipantRequest(null, NewParticipantDisplayName);
+
+            if (req.UserId is null && string.IsNullOrWhiteSpace(req.DisplayName))
+            {
+                Status = "Enter a valid UserId or a display name.";
+                return;
+            }
+
+            var ok = await _client.AddParticipantAsync(SelectedTrip.TripId, req);
             Status = ok ? "Participant added." : "Trip not found.";
             await LoadSummaryAsync(SelectedTrip.TripId);
         });

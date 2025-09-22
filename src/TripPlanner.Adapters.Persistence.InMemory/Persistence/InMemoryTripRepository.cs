@@ -132,4 +132,9 @@ public sealed class InMemoryTripRepository : ITripRepository, IUnitOfWork
         // In-memory store: nothing to flush
         return Task.FromResult(0);
     }
+
+    public Task AddAnonymousAsync(Guid tripId, string displayName, CancellationToken ct)
+    {
+        throw new NotImplementedException();
+    }
 }

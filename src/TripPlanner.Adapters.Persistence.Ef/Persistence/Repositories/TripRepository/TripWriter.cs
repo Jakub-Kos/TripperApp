@@ -2,6 +2,7 @@
 using TripPlanner.Adapters.Persistence.Ef.Persistence.Db;
 using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Date;
 using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Trip;
+using TripPlanner.Core.Contracts.Contracts.Common.Participants;
 using TripPlanner.Core.Domain.Domain.Aggregates;
 using TripPlanner.Core.Domain.Domain.Primitives;
 
@@ -52,5 +53,25 @@ internal sealed class TripWriter
 
         _db.DateVotes.Add(new DateVoteRecord { DateOptionId = dateOptionId.Value, UserId = userId.Value });
         return true; // UoW will save
+    }
+    
+    public async Task AddAnonymousAsync(Guid tripId, string displayName, CancellationToken ct)
+    {
+        var exists = await _db.Trips.AnyAsync(t => t.TripId == tripId, ct);
+        if (!exists) throw new InvalidOperationException("Trip not found.");
+
+        var name = string.IsNullOrWhiteSpace(displayName) ? "Anonymous" : displayName.Trim();
+
+        var p = new ParticipantRecord
+        {
+            TripId = tripId,
+            ParticipantId = Guid.NewGuid(),
+            UserId = null,          // NULL for anonymous
+            IsAnonymous = true,
+            DisplayName = name
+        };
+
+        _db.Participants.Add(p);
+        await _db.SaveChangesAsync(ct); 
     }
 }

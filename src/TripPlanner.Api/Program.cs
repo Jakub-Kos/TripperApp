@@ -14,6 +14,7 @@ using TripPlanner.Adapters.Persistence.Ef.Persistence.Repositories;
 using TripPlanner.Api.Auth;
 using TripPlanner.Api.Infrastructure.Validation;
 using TripPlanner.Api.Swagger;
+using TripPlanner.Core.Application.Application.Abstractions;
 using TripPlanner.Core.Application.Application.Trips;
 using TripPlanner.Core.Application.Application.Trips.Commands;
 using TripPlanner.Core.Application.Application.Trips.Queries;
@@ -148,12 +149,25 @@ v1.MapGet("/trips/{tripId}",
     .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
 
 v1.MapPost("/trips/{tripId}/participants",
-        async (Guid tripId, AddParticipantRequest req, AddParticipantHandler handler, CancellationToken ct) =>
+        async (Guid tripId, AddParticipantRequest req, AddParticipantHandler handler, TripRepository tripRepo, IUnitOfWork uow, CancellationToken ct) =>
         {
-            if (req.UserId is not Guid userId)            
-                return Results.BadRequest("UserId must be a GUID.");
-            var ok = await handler.Handle(new AddParticipantCommand(tripId.ToString(), userId.ToString()), ct);
-            return ok ? Results.NoContent() : Results.NotFound();
+            if (req.UserId is Guid userId) // registered user path
+            {
+                var ok = await handler.Handle(
+                    new AddParticipantCommand(tripId.ToString(), userId.ToString()),
+                    ct);
+
+                if (!ok) return Results.NotFound();
+                await uow.SaveChangesAsync(ct);
+                return Results.NoContent();
+            }
+
+            // anonymous path
+            if (string.IsNullOrWhiteSpace(req.DisplayName))
+                return Results.BadRequest("DisplayName is required when UserId is null.");
+
+            await tripRepo.AddAnonymousAsync(tripId, req.DisplayName.Trim(), ct);
+            return Results.NoContent();
         })
     .AddEndpointFilter(new ValidationFilter<AddParticipantRequest>())
     .WithTags("Trips")

@@ -2,6 +2,7 @@
 using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Date;
 using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Destination;
 using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Trip;
+using TripPlanner.Core.Contracts.Contracts.Common.Participants;
 using TripPlanner.Core.Domain.Domain.Aggregates;
 using TripPlanner.Core.Domain.Domain.Primitives;
 
@@ -67,4 +68,12 @@ internal static class TripMap
             }).ToList()
         };
     }
+    
+    public static ParticipantDto ToDto(ParticipantRecord p) =>
+        new(
+            p.ParticipantId.ToString(),
+            p.DisplayName,
+            p.IsAnonymous,
+            p.UserId ?? Guid.Empty
+        );
 }

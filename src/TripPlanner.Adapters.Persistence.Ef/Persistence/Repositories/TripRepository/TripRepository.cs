@@ -33,4 +33,6 @@ public sealed class TripRepository : ITripRepository
     public Task<DateOptionId> ProposeDateOption(TripId tripId, DateOnly date, CancellationToken ct) => _writer.ProposeDateOption(tripId, date, ct);
 
     public Task<bool> CastVote(TripId tripId, DateOptionId dateOptionId, UserId userId, CancellationToken ct) => _writer.CastVote(tripId, dateOptionId, userId, ct);
+    
+    public Task AddAnonymousAsync(Guid tripId, string displayName, CancellationToken ct) => _writer.AddAnonymousAsync(tripId, displayName, ct);
 }

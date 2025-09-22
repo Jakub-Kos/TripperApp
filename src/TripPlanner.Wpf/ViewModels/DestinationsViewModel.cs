@@ -26,7 +26,6 @@ public sealed class DestinationsViewModel : INotifyPropertyChanged
     private bool _busy;
 
     public event PropertyChangedEventHandler? PropertyChanged;
-
     public ObservableCollection<DestinationRow> Destinations { get; } = new();
 
     // When this changes we auto-refresh.
@@ -51,7 +50,13 @@ public sealed class DestinationsViewModel : INotifyPropertyChanged
     public DestinationRow? SelectedDestination
     {
         get => _selectedDestination;
-        set { _selectedDestination = value; OnPropertyChanged(); }
+        set
+        {
+            if (_selectedDestination == value) return;
+            _selectedDestination = value;
+            OnPropertyChanged();
+            ((AsyncCommand)VoteCommand).RaiseCanExecuteChanged();
+        }
     }
 
     public string? NewTitle

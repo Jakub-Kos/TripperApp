@@ -74,10 +74,16 @@
                 </DataGrid.Columns>
               </DataGrid>
 
+              <!-- Registered OR anonymous -->
               <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                <TextBlock Text="New participant:" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                <TextBox Width="320" Text="{Binding NewParticipantUserId, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,0"/>
-                <Button Content="Add" Command="{Binding AddParticipantCommand}"/>
+                <TextBlock Text="UserId (GUID):" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                <TextBox Width="280"
+                         Text="{Binding NewParticipantUserIdText, UpdateSourceTrigger=PropertyChanged}"
+                         Margin="0,0,12,0"/>
+                <TextBlock Text="or Name:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                <TextBox Width="200"
+                         Text="{Binding NewParticipantDisplayName, UpdateSourceTrigger=PropertyChanged}" />
+                <Button Content="Add" Command="{Binding AddParticipantCommand}" Margin="12,0,0,0"/>
               </StackPanel>
 
               <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
@@ -107,7 +113,7 @@
               <DataGrid ItemsSource="{Binding Destinations}"
                         AutoGenerateColumns="False" IsReadOnly="True"
                         Height="200" Margin="0,4,0,8"
-                        SelectedValue="{Binding SelectedDestinationId}">
+                        SelectedItem="{Binding SelectedDestination, Mode=TwoWay}">
                 <DataGrid.Columns>
                   <DataGridTextColumn Header="Title" Binding="{Binding Title}" Width="2*"/>
                   <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="2*"/>
