@@ -26,4 +26,23 @@ internal sealed class TripQueries
 
         return recs.Select(TripMap.ToAggregate).ToList();
     }
+    
+    public async Task<IReadOnlyList<Trip>> ListForUserAsync(Guid userId, bool includeFinished, CancellationToken ct)
+    {
+        var query = _db.Trips
+            .AsNoTracking()
+            .Include(t => t.Participants)
+            .Where(t => t.Participants.Any(p => p.UserId == userId));
+
+        if (!includeFinished) query = query.Where(t => !t.IsFinished);
+
+        var recs = await query
+            .OrderBy(t => t.Name)
+            .Include(t => t.DateOptions).ThenInclude(o => o.Votes)
+            .Include(t => t.Destinations).ThenInclude(d => d.Images)
+            .Include(t => t.Destinations).ThenInclude(d => d.Votes)
+            .ToListAsync(ct);
+
+        return recs.Select(TripMap.ToAggregate).ToList();
+    }
 }

@@ -11,16 +11,4 @@ public sealed class CastVoteHandler
     private readonly IUnitOfWork _uow;
     public CastVoteHandler(ITripRepository repo, IUnitOfWork uow) { _repo = repo; _uow = uow; }
 
-    public async Task<bool> Handle(CastVoteCommand cmd, CancellationToken ct)
-    {
-        if (!Guid.TryParse(cmd.TripId, out var t) ||
-            !Guid.TryParse(cmd.DateOptionId, out var d) ||
-            !Guid.TryParse(cmd.UserId, out var u))
-            return false;
-
-        var ok = await _repo.CastVote(new TripId(t), new DateOptionId(d), new UserId(u), ct);
-        if (!ok) return false;
-        await _uow.SaveChangesAsync(ct);
-        return true;
-    }
 }

@@ -12,8 +12,6 @@ public interface ITripRepository
     Task UpdateAsync(Trip trip, CancellationToken ct = default);
     Task<bool> AddParticipant(TripId tripId, UserId userId, CancellationToken ct);
     Task<DateOptionId> ProposeDateOption(TripId tripId, DateOnly date, CancellationToken ct);
-    Task<bool> CastVote(TripId tripId, DateOptionId dateOptionId, UserId userId, CancellationToken ct);
-    Task AddAnonymousAsync(Guid tripId, string displayName, CancellationToken ct);
 }
 
 public interface IUnitOfWork

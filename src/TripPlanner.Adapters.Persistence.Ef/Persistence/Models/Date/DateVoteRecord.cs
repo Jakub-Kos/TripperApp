@@ -4,5 +4,7 @@ public sealed class DateVoteRecord
 {
     public long Id { get; set; }
     public Guid DateOptionId { get; set; }
-    public Guid UserId { get; set; }
+    
+    public Guid ParticipantId { get; set; }
+    public Guid UserId { get; set; } // TODO delete
 }

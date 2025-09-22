@@ -1,4 +1,6 @@
-﻿namespace TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Date;
+﻿using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Trip;
+
+namespace TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Date;
 
 public sealed class DateOptionRecord
 {
@@ -6,4 +8,5 @@ public sealed class DateOptionRecord
     public Guid TripId { get; set; }
     public string DateIso { get; set; } = null!;
     public List<DateVoteRecord> Votes { get; set; } = new();
+    public TripRecord Trip { get; set; } = default!;
 }

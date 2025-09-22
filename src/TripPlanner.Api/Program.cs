@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using FluentValidation;
 using Microsoft.AspNetCore.Http;
@@ -9,9 +10,14 @@ using TripPlanner.Adapters.Persistence.Ef;
 using TripPlanner.Adapters.Persistence.Ef.Persistence.Db;
 using TripPlanner.Adapters.Persistence.Ef.Persistence.Models;
 using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Common;
+using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Date;
+using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Destination;
+using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Trip;
 using TripPlanner.Adapters.Persistence.Ef.Persistence.Repositories;
 
 using TripPlanner.Api.Auth;
+using TripPlanner.Api.Endpoints;
+using TripPlanner.Api.Infrastructure;
 using TripPlanner.Api.Infrastructure.Validation;
 using TripPlanner.Api.Swagger;
 using TripPlanner.Core.Application.Application.Abstractions;
@@ -104,172 +110,11 @@ app.MapGet("/", () => Results.Redirect("/swagger")).AllowAnonymous();
 // ---------------------------
 // Trips
 var v1 = app.MapGroup("/api/v1");
-v1.MapPost("/trips",
-        async (CreateTripRequest req, CreateTripHandler handler, CancellationToken ct) =>
-        {
-            var result = await handler.Handle(new CreateTripCommand(req.Name, req.OrganizerId), ct);
-            return Results.Created($"/api/v1/trips/{result.Trip.TripId}", result.Trip);
-        })
-    .AddEndpointFilter(new ValidationFilter<CreateTripRequest>())
-    .WithTags("Trips")
-    .WithName("CreateTrip")
-    .WithSummary("Create a new trip")
-    .WithDescription("Creates a trip with the given name and organizer GUID.")
-    .Accepts<CreateTripRequest>("application/json")
-    .Produces<TripDto>(StatusCodes.Status201Created)
-    .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
-    .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError);
-
-v1.MapGet("/trips",
-        async (int? skip, int? take, ListTripsHandler handler, CancellationToken ct) =>
-        {
-            var trips = await handler.Handle(new ListTripsQuery(skip ?? 0, take ?? 50), ct);
-            return Results.Ok(trips);
-        })
-    .WithTags("Trips")
-    .WithName("ListTrips")
-    .WithSummary("List trips")
-    .WithDescription("Returns a paged list of trips (default: 0..50).")
-    .Produces<IReadOnlyList<TripDto>>(StatusCodes.Status200OK)
-    .Produces<ErrorResponse>(StatusCodes.Status500InternalServerError);
-
-v1.MapGet("/trips/{tripId}",
-        async (string tripId, GetTripByIdHandler handler, CancellationToken ct) =>
-        {
-            var dto = await handler.Handle(new GetTripByIdQuery(tripId), ct);
-            return dto is null
-                ? Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip not found"))
-                : Results.Ok(dto);
-        })
-    .WithTags("Trips")
-    .WithName("GetTripById")
-    .WithSummary("Get trip details")
-    .WithDescription("Returns participants and date options for the given trip.")
-    .Produces<TripSummaryDto>(StatusCodes.Status200OK)
-    .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
-
-v1.MapPost("/trips/{tripId}/participants",
-        async (Guid tripId, AddParticipantRequest req, AddParticipantHandler handler, TripRepository tripRepo, IUnitOfWork uow, CancellationToken ct) =>
-        {
-            if (req.UserId is Guid userId) // registered user path
-            {
-                var ok = await handler.Handle(
-                    new AddParticipantCommand(tripId.ToString(), userId.ToString()),
-                    ct);
-
-                if (!ok) return Results.NotFound();
-                await uow.SaveChangesAsync(ct);
-                return Results.NoContent();
-            }
-
-            // anonymous path
-            if (string.IsNullOrWhiteSpace(req.DisplayName))
-                return Results.BadRequest("DisplayName is required when UserId is null.");
-
-            await tripRepo.AddAnonymousAsync(tripId, req.DisplayName.Trim(), ct);
-            return Results.NoContent();
-        })
-    .AddEndpointFilter(new ValidationFilter<AddParticipantRequest>())
-    .WithTags("Trips")
-    .WithName("AddParticipant")
-    .WithSummary("Add participant")
-    .WithDescription("Adds a participant (GUID) to the trip.")
-    .Accepts<AddParticipantRequest>("application/json")
-    .Produces(StatusCodes.Status204NoContent)
-    .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
-    .Produces<ErrorResponse>(StatusCodes.Status400BadRequest);
-
-v1.MapPost("/trips/{tripId}/date-options",
-        async (string tripId, ProposeDateRequest req, ProposeDateOptionHandler handler, CancellationToken ct) =>
-        {
-            var date = DateOnly.Parse(req.Date); // safe now thanks to validator
-            var id = await handler.Handle(new ProposeDateOptionCommand(tripId, date), ct);
-            return id is null
-                ? Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip not found"))
-                : Results.Created($"/api/v1/trips/{tripId}", new { dateOptionId = id.Value.Value.ToString("D") });
-        })
-    .AddEndpointFilter(new ValidationFilter<ProposeDateRequest>())
-    .WithTags("Trips")
-    .WithName("ProposeDateOption")
-    .WithSummary("Propose date option")
-    .WithDescription("Proposes a date (YYYY-MM-DD) for the trip.")
-    .Accepts<ProposeDateRequest>("application/json")
-    .Produces(StatusCodes.Status201Created)
-    .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
-    .Produces<ErrorResponse>(StatusCodes.Status400BadRequest);
-
-v1.MapPost("/trips/{tripId}/votes",
-        async (string tripId, CastVoteRequest req, CastVoteHandler handler, CancellationToken ct) =>
-        {
-            var ok = await handler.Handle(new CastVoteCommand(tripId, req.DateOptionId, req.UserId), ct);
-            return ok
-                ? Results.NoContent()
-                : Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip or option not found"));
-        })
-    .AddEndpointFilter(new ValidationFilter<CastVoteRequest>())
-    .WithTags("Trips")
-    .WithName("CastVote")
-    .WithSummary("Cast a vote")
-    .WithDescription("Casts a vote for a specific date option (GUID) as the given user (GUID).")
-    .Accepts<CastVoteRequest>("application/json")
-    .Produces(StatusCodes.Status204NoContent)
-    .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
-    .Produces<ErrorResponse>(StatusCodes.Status400BadRequest);
-
-// --- Destinations: list ---
-v1.MapGet("/trips/{tripId}/destinations",
-        async (string tripId, ListDestinationsHandler handler, CancellationToken ct) =>
-        {
-            var list = await handler.Handle(new ListDestinationsQuery(tripId), ct);
-            return list is null
-                ? Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip not found"))
-                : Results.Ok(list);
-        })
-    .WithTags("Trips")
-    .WithName("ListDestinations")
-    .WithSummary("List destination proposals")
-    .WithDescription("Returns all destination proposals for the trip.")
-    .Produces<IReadOnlyList<DestinationProposalDto>>(StatusCodes.Status200OK)
-    .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
-
-// PROPOSE
-v1.MapPost("/trips/{tripId}/destinations",
-        async (string tripId, ProposeDestinationRequest req, ProposeDestinationHandler handler, CancellationToken ct) =>
-        {
-            var id = await handler.Handle(new ProposeDestinationCommand(tripId, req.Title, req.Description, req.ImageUrls), ct);
-            return id is null
-                ? Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip not found"))
-                : Results.Created($"/api/v1/trips/{tripId}/destinations/{id.Value.Value:D}",
-                    new { destinationId = id.Value.Value.ToString("D") });
-        })
-    .AddEndpointFilter(new ValidationFilter<ProposeDestinationRequest>())
-    .WithTags("Trips")
-    .WithName("ProposeDestination")
-    .WithSummary("Propose destination")
-    .WithDescription("Proposes a destination with title, optional description, and image URLs.")
-    .Accepts<ProposeDestinationRequest>("application/json")
-    .Produces(StatusCodes.Status201Created)
-    .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
-    .Produces<ErrorResponse>(StatusCodes.Status400BadRequest);
-
-// VOTE
-v1.MapPost("/trips/{tripId}/destinations/{destinationId}/votes",
-        async (string tripId, string destinationId, VoteDestinationRequest req, VoteDestinationHandler handler, CancellationToken ct) =>
-        {
-            var ok = await handler.Handle(new VoteDestinationCommand(tripId, destinationId, req.UserId), ct);
-            return ok
-                ? Results.NoContent()
-                : Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip or destination not found"));
-        })
-    .AddEndpointFilter(new ValidationFilter<VoteDestinationRequest>())
-    .WithTags("Trips")
-    .WithName("VoteDestination")
-    .WithSummary("Cast a vote for a destination")
-    .WithDescription("Casts a vote for a specific destination (GUID in route) as the given user (GUID).")
-    .Accepts<VoteDestinationRequest>("application/json")
-    .Produces(StatusCodes.Status204NoContent)
-    .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
-    .Produces<ErrorResponse>(StatusCodes.Status400BadRequest);
+v1.MapDateEndpoints();
+v1.MapDestinationEndpoints();
+v1.MapInvitesEndpoints();
+v1.MapParticipantsEndpoints();
+v1.MapTripsEndpoints();
 
 // ---------------------------
 // AUTH endpoints (public)

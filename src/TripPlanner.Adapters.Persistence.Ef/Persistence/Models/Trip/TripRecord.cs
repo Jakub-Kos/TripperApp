@@ -8,9 +8,9 @@ public sealed class TripRecord
     public Guid TripId { get; set; }
     public string Name { get; set; } = null!;
     public Guid OrganizerId { get; set; }
-    
     public DateTimeOffset CreatedAt { get; set; }
     public string DescriptionMarkdown { get; set; } = "";
+    public bool IsFinished { get; set; } = false;
 
     public List<ParticipantRecord> Participants { get; set; } = new();
     public List<DateOptionRecord> DateOptions { get; set; } = new();

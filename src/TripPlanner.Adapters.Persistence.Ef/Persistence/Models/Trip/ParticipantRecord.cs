@@ -8,9 +8,11 @@ public class ParticipantRecord
     public Guid TripId { get; set; }
     public Guid? UserId { get; set; }
     public Guid ParticipantId { get; set; }
-    public bool IsAnonymous { get; set; }
-    public TripRecord Trip { get; set; } = default!;
-
-    public UserRecord? User { get; set; }
+    public bool IsPlaceholder { get; set; }
     public string DisplayName { get; set; } = "";
+    
+    public DateTimeOffset? ClaimedAt { get; set; }   // when placeholder claimed
+    public Guid CreatedByUserId { get; set; }        // who added this row
+    public TripRecord Trip { get; set; } = default!;
+    public UserRecord? User { get; set; }
 }

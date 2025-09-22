@@ -11,8 +11,8 @@ using TripPlanner.Adapters.Persistence.Ef.Persistence.Db;
 namespace TripPlanner.Adapters.Persistence.Ef.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20250921211247_AddCreatedAtAndParticipantName")]
-    partial class AddCreatedAtAndParticipantName
+    [Migration("20250922214829_InitialClean")]
+    partial class InitialClean
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -95,8 +95,7 @@ namespace TripPlanner.Adapters.Persistence.Ef.Migrations
 
                     b.HasKey("DateOptionId");
 
-                    b.HasIndex("TripId", "DateIso")
-                        .IsUnique();
+                    b.HasIndex("TripId");
 
                     b.ToTable("DateOptions", (string)null);
                 });
@@ -110,13 +109,18 @@ namespace TripPlanner.Adapters.Persistence.Ef.Migrations
                     b.Property<Guid>("DateOptionId")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid>("ParticipantId")
+                        .HasColumnType("TEXT");
+
                     b.Property<Guid>("UserId")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("DateOptionId", "UserId")
+                    b.HasIndex("DateOptionId", "ParticipantId")
                         .IsUnique();
+
+                    b.HasIndex("DateOptionId", "UserId");
 
                     b.ToTable("DateVotes", (string)null);
                 });
@@ -130,6 +134,9 @@ namespace TripPlanner.Adapters.Persistence.Ef.Migrations
                     b.Property<Guid>("DestinationId")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid>("DestinationId1")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Url")
                         .IsRequired()
                         .HasMaxLength(2048)
@@ -138,6 +145,8 @@ namespace TripPlanner.Adapters.Persistence.Ef.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("DestinationId");
+
+                    b.HasIndex("DestinationId1");
 
                     b.ToTable("DestinationImages");
                 });
@@ -149,7 +158,9 @@ namespace TripPlanner.Adapters.Persistence.Ef.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Description")
-                        .HasColumnType("TEXT");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("");
 
                     b.Property<string>("Title")
                         .IsRequired()
@@ -163,7 +174,7 @@ namespace TripPlanner.Adapters.Persistence.Ef.Migrations
 
                     b.HasIndex("TripId");
 
-                    b.ToTable("Destinations");
+                    b.ToTable("Destinations", (string)null);
                 });
 
             modelBuilder.Entity("TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Destination.DestinationVoteRecord", b =>
@@ -175,15 +186,25 @@ namespace TripPlanner.Adapters.Persistence.Ef.Migrations
                     b.Property<Guid>("DestinationId")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid>("DestinationId1")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ParticipantId")
+                        .HasColumnType("TEXT");
+
                     b.Property<Guid>("UserId")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("DestinationId", "UserId")
+                    b.HasIndex("DestinationId1");
+
+                    b.HasIndex("DestinationId", "ParticipantId")
                         .IsUnique();
 
-                    b.ToTable("DestinationVotes");
+                    b.HasIndex("DestinationId", "UserId");
+
+                    b.ToTable("DestinationVotes", (string)null);
                 });
 
             modelBuilder.Entity("TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Trip.ParticipantRecord", b =>
@@ -192,11 +213,17 @@ namespace TripPlanner.Adapters.Persistence.Ef.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<DateTimeOffset?>("ClaimedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("DisplayName")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<bool>("IsAnonymous")
+                    b.Property<bool>("IsPlaceholder")
                         .HasColumnType("INTEGER");
 
                     b.Property<Guid>("ParticipantId")
@@ -212,10 +239,94 @@ namespace TripPlanner.Adapters.Persistence.Ef.Migrations
 
                     b.HasIndex("UserId");
 
+                    b.HasIndex("TripId", "ParticipantId")
+                        .IsUnique();
+
                     b.HasIndex("TripId", "UserId")
                         .IsUnique();
 
                     b.ToTable("TripParticipants", (string)null);
+                });
+
+            modelBuilder.Entity("TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Trip.PlaceholderClaimRecord", b =>
+                {
+                    b.Property<Guid>("ClaimId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CodeHash")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ParticipantId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset?>("RevokedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("TripId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("ClaimId");
+
+                    b.HasIndex("CodeHash")
+                        .IsUnique();
+
+                    b.HasIndex("ExpiresAt");
+
+                    b.HasIndex("TripId", "ParticipantId");
+
+                    b.ToTable("PlaceholderClaims", (string)null);
+                });
+
+            modelBuilder.Entity("TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Trip.TripInviteRecord", b =>
+                {
+                    b.Property<Guid>("InviteId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CodeHash")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("MaxUses")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTimeOffset?>("RevokedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("TripId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Uses")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("InviteId");
+
+                    b.HasIndex("CodeHash")
+                        .IsUnique();
+
+                    b.HasIndex("TripId");
+
+                    b.ToTable("TripInvites", (string)null);
                 });
 
             modelBuilder.Entity("TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Trip.TripRecord", b =>
@@ -232,6 +343,11 @@ namespace TripPlanner.Adapters.Persistence.Ef.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT")
                         .HasDefaultValue("");
+
+                    b.Property<bool>("IsFinished")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(false);
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -259,11 +375,13 @@ namespace TripPlanner.Adapters.Persistence.Ef.Migrations
 
             modelBuilder.Entity("TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Date.DateOptionRecord", b =>
                 {
-                    b.HasOne("TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Trip.TripRecord", null)
+                    b.HasOne("TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Trip.TripRecord", "Trip")
                         .WithMany("DateOptions")
                         .HasForeignKey("TripId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Trip");
                 });
 
             modelBuilder.Entity("TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Date.DateVoteRecord", b =>
@@ -277,9 +395,15 @@ namespace TripPlanner.Adapters.Persistence.Ef.Migrations
 
             modelBuilder.Entity("TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Destination.DestinationImageRecord", b =>
                 {
-                    b.HasOne("TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Destination.DestinationRecord", "Destination")
+                    b.HasOne("TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Destination.DestinationRecord", null)
                         .WithMany("Images")
                         .HasForeignKey("DestinationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Destination.DestinationRecord", "Destination")
+                        .WithMany()
+                        .HasForeignKey("DestinationId1")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -299,9 +423,15 @@ namespace TripPlanner.Adapters.Persistence.Ef.Migrations
 
             modelBuilder.Entity("TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Destination.DestinationVoteRecord", b =>
                 {
-                    b.HasOne("TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Destination.DestinationRecord", "Destination")
+                    b.HasOne("TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Destination.DestinationRecord", null)
                         .WithMany("Votes")
                         .HasForeignKey("DestinationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Destination.DestinationRecord", "Destination")
+                        .WithMany()
+                        .HasForeignKey("DestinationId1")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -318,7 +448,8 @@ namespace TripPlanner.Adapters.Persistence.Ef.Migrations
 
                     b.HasOne("TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Common.UserRecord", "User")
                         .WithMany()
-                        .HasForeignKey("UserId");
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Trip");
 
