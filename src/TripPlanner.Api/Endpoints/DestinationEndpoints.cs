@@ -17,27 +17,13 @@ public static class DestinationEndpoints
     public static IEndpointRouteBuilder MapDestinationEndpoints(this IEndpointRouteBuilder v1)
     {
         v1.MapPost("/trips/{tripId:guid}/destinations/{destinationId:guid}/votes",
-                async (Guid tripId, Guid destinationId, AppDbContext db, System.Security.Claims.ClaimsPrincipal user, CancellationToken ct) =>
+                async (Guid tripId, Guid destinationId, System.Security.Claims.ClaimsPrincipal user, VoteDestinationHandler handler, CancellationToken ct) =>
                 {
                     var sub = user.FindFirst("sub")?.Value ?? user.FindFirst("nameid")?.Value;
                     if (!Guid.TryParse(sub, out var me)) return Results.Unauthorized();
 
-                    var participantId = await db.Participants
-                        .Where(p => p.TripId == tripId && p.UserId == me)
-                        .Select(p => p.ParticipantId)
-                        .FirstOrDefaultAsync(ct);
-
-                    if (participantId == Guid.Empty) return Results.Forbid();
-
-                    var destExists = await db.Destinations.AnyAsync(d => d.TripId == tripId && d.DestinationId == destinationId, ct);
-                    if (!destExists) return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip or destination not found"));
-
-                    var dup = await db.DestinationVotes.AnyAsync(v => v.DestinationId == destinationId && v.ParticipantId == participantId, ct);
-                    if (!dup)
-                    {
-                        db.DestinationVotes.Add(new DestinationVoteRecord { DestinationId = destinationId, ParticipantId = participantId });
-                        await db.SaveChangesAsync(ct);
-                    }
+                    var ok = await handler.Handle(new VoteDestinationCommand(tripId.ToString("D"), destinationId.ToString("D"), me), ct);
+                    if (!ok) return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip or destination not found"));
 
                     return Results.NoContent();
                 })
@@ -45,8 +31,7 @@ public static class DestinationEndpoints
             .WithSummary("Vote self for destination")
             .WithDescription("Current user votes using their participant identity.")
             .Produces(StatusCodes.Status204NoContent)
-            .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
-            .Produces(StatusCodes.Status403Forbidden);
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
 
         v1.MapPost("/trips/{tripId:guid}/destinations/{destinationId:guid}/votes/proxy",
                 async (Guid tripId, Guid destinationId, DestinationProxyVoteRequest req, AppDbContext db, CancellationToken ct) =>

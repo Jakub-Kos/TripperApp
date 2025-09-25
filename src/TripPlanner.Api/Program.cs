@@ -8,12 +8,7 @@ using Microsoft.OpenApi.Models;
 
 using TripPlanner.Adapters.Persistence.Ef;
 using TripPlanner.Adapters.Persistence.Ef.Persistence.Db;
-using TripPlanner.Adapters.Persistence.Ef.Persistence.Models;
-using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Common;
-using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Date;
-using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Destination;
-using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Trip;
-using TripPlanner.Adapters.Persistence.Ef.Persistence.Repositories;
+using TripPlanner.Api.Infrastructure.Time;
 
 using TripPlanner.Api.Auth;
 using TripPlanner.Api.Endpoints;
@@ -62,6 +57,7 @@ services.AddEfPersistence(
     builder.Environment);
 // --- AUTH ---
 services.AddJwtAuth(builder.Configuration);
+services.AddSingleton<IClock, SystemClock>();
 
 // ---------------
 // BUILD the app
@@ -126,45 +122,34 @@ app.MapPost("/auth/register", async (RegisterRequest req, IUserRepository users,
         return Results.Conflict(new { error = "Email already registered." });
 
     var hash = BCrypt.Net.BCrypt.HashPassword(req.Password);
-    var user = new UserRecord
-    {
-        Email = req.Email,
-        DisplayName = req.DisplayName,
-        PasswordHash = hash
-    };
-    await users.Add(user, ct);
-    return Results.Created($"/users/{user.UserId}", new { userId = user.UserId, user.DisplayName, user.Email });
+    var userId = await users.Add(req.Email, req.DisplayName, hash, ct);
+    return Results.Created($"/users/{userId}", new { userId, displayName = req.DisplayName, email = req.Email });
 }).AllowAnonymous();
 
-app.MapPost("/auth/login", async (LoginRequest req, IUserRepository users, IJwtService jwt, JwtOptions jwtOptions, IConfiguration cfg, CancellationToken ct) =>
+app.MapPost("/auth/login", async (LoginRequest req, IUserRepository users, IJwtService jwt, JwtOptions jwtOptions, IConfiguration cfg, IClock clock, CancellationToken ct) =>
 {
     var user = await users.FindByEmail(req.Email, ct);
     if (user is null || !BCrypt.Net.BCrypt.Verify(req.Password, user.PasswordHash))
         return Results.Unauthorized();
 
-    var (access, exp) = jwt.IssueAccessToken(user.UserId, user.Email);
+    var (access, _) = jwt.IssueAccessToken(user.UserId, user.Email);
     var rawRefresh = jwt.IssueRefreshToken();
     
     var refreshPepper = cfg["Jwt:RefreshPepper"];
     var refreshHash = TokenHasher.Hash(rawRefresh, refreshPepper);
 
-    await users.AddRefreshToken(new RefreshTokenRecord
-    {
-        UserId = user.UserId,
-        Token = refreshHash,
-        ExpiresAt = DateTimeOffset.UtcNow.AddDays(jwtOptions.RefreshTokenDays)
-    }, ct);
+    await users.AddRefreshToken(user.UserId, refreshHash, clock.UtcNow.AddDays(jwtOptions.RefreshTokenDays), ct);
 
     return Results.Ok(new LoginResponse(access, rawRefresh, (int)TimeSpan.FromMinutes(jwtOptions.AccessTokenMinutes).TotalSeconds));
 }).AllowAnonymous();
 
-app.MapPost("/auth/refresh", async (RefreshRequest req, IUserRepository users, IJwtService jwt, JwtOptions jwtOpts, IConfiguration cfg, CancellationToken ct) =>
+app.MapPost("/auth/refresh", async (RefreshRequest req, IUserRepository users, IJwtService jwt, JwtOptions jwtOpts, IConfiguration cfg, IClock clock, CancellationToken ct) =>
 {
     var pepper = cfg["Jwt:RefreshPepper"];
     var presentedHash = TokenHasher.Hash(req.RefreshToken, pepper);
 
     var token = await users.FindRefreshToken(presentedHash, ct);
-    if (token is null || token.RevokedAt is not null || token.ExpiresAt <= DateTimeOffset.UtcNow)
+    if (token is null || token.RevokedAt is not null || token.ExpiresAt <= clock.UtcNow)
         return Results.Unauthorized();
 
     var user = token.User!;
@@ -173,14 +158,8 @@ app.MapPost("/auth/refresh", async (RefreshRequest req, IUserRepository users, I
     var newRefreshRaw = jwt.IssueRefreshToken();
     var newRefreshHash = TokenHasher.Hash(newRefreshRaw, pepper);
 
-    token.RevokedAt = DateTimeOffset.UtcNow;
-    await users.AddRefreshToken(new RefreshTokenRecord
-    {
-        UserId = user.UserId,
-        Token = newRefreshHash,
-        ExpiresAt = DateTimeOffset.UtcNow.AddDays(jwtOpts.RefreshTokenDays)
-    }, ct);
-    await users.SaveChanges(ct);
+    await users.RevokeRefreshToken(presentedHash, clock.UtcNow, ct);
+    await users.AddRefreshToken(user.UserId, newRefreshHash, clock.UtcNow.AddDays(jwtOpts.RefreshTokenDays), ct);
 
     return Results.Ok(new RefreshResponse(
         access,
@@ -188,12 +167,11 @@ app.MapPost("/auth/refresh", async (RefreshRequest req, IUserRepository users, I
         (int)TimeSpan.FromMinutes(jwtOpts.AccessTokenMinutes).TotalSeconds));
 }).AllowAnonymous();
 
-app.MapPost("/auth/logout", async (RefreshRequest req, IUserRepository users, CancellationToken ct) =>
+app.MapPost("/auth/logout", async (RefreshRequest req, IUserRepository users, IConfiguration cfg, IClock clock, CancellationToken ct) =>
 {
-    var token = await users.FindRefreshToken(req.RefreshToken, ct);
-    if (token is null) return Results.NoContent();
-    token.RevokedAt = DateTimeOffset.UtcNow;
-    await users.SaveChanges(ct);
+    var pepper = cfg["Jwt:RefreshPepper"];
+    var presentedHash = TokenHasher.Hash(req.RefreshToken, pepper);
+    await users.RevokeRefreshToken(presentedHash, clock.UtcNow, ct);
     return Results.NoContent();
 }).AllowAnonymous();
 
