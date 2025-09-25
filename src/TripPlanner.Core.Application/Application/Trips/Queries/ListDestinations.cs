@@ -4,8 +4,6 @@ using TripPlanner.Core.Domain.Domain.Primitives;
 
 namespace TripPlanner.Core.Application.Application.Trips.Queries;
 
-public sealed record ListDestinationsQuery(string TripId);
-
 public sealed class ListDestinationsHandler
 {
     private readonly ITripRepository _repo;

@@ -4,8 +4,6 @@ using TripPlanner.Core.Domain.Domain.Primitives;
 
 namespace TripPlanner.Core.Application.Application.Trips;
 
-public sealed record GetTripByIdQuery(string TripId);
-
 public sealed class GetTripByIdHandler
 {
     private readonly ITripRepository _repo;

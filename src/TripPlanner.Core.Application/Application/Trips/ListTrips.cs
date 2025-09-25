@@ -3,8 +3,6 @@ using TripPlanner.Core.Contracts.Contracts.V1.Trips;
 
 namespace TripPlanner.Core.Application.Application.Trips;
 
-public sealed record ListTripsQuery(int Skip = 0, int Take = 50);
-
 public sealed class ListTripsHandler
 {
     private readonly ITripRepository _trips;

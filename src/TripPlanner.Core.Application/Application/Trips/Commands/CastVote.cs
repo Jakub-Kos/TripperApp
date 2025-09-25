@@ -3,8 +3,6 @@ using TripPlanner.Core.Domain.Domain.Primitives;
 using TripPlanner.Core.Domain.Domain.Aggregates;
 namespace TripPlanner.Core.Application.Application.Trips;
 
-public sealed record CastVoteCommand(string TripId, string DateOptionId, string UserId);
-
 public sealed class CastVoteHandler
 {
     private readonly ITripRepository _repo;

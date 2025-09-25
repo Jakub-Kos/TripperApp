@@ -5,8 +5,6 @@ using TripPlanner.Core.Domain.Domain.Primitives;
 
 namespace TripPlanner.Core.Application.Application.Trips;
 
-public sealed record CreateTripCommand(string Name, string OrganizerId);
-
 public sealed class CreateTripHandler
 {
     private readonly ITripRepository _trips;

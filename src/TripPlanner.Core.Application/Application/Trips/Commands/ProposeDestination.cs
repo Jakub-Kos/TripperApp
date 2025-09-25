@@ -3,13 +3,6 @@ using TripPlanner.Core.Domain.Domain.Primitives;
 
 namespace TripPlanner.Core.Application.Application.Trips.Commands;
 
-public sealed record ProposeDestinationCommand(
-    string TripId,
-    string Title,
-    string? Description,
-    IReadOnlyList<string> ImageUrls
-);
-
 public sealed class ProposeDestinationHandler
 {
     private readonly ITripRepository _repo;

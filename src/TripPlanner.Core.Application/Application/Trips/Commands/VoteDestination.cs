@@ -3,12 +3,6 @@ using TripPlanner.Core.Domain.Domain.Primitives;
 
 namespace TripPlanner.Core.Application.Application.Trips.Commands;
 
-public sealed record VoteDestinationCommand(
-    string TripId,
-    string DestinationId,
-    Guid UserId
-);
-
 public sealed class VoteDestinationHandler
 {
     private readonly ITripRepository _repo;

@@ -3,8 +3,6 @@ using TripPlanner.Core.Domain.Domain.Primitives;
 
 namespace TripPlanner.Core.Application.Application.Trips;
 
-public sealed record AddParticipantCommand(string TripId, string UserId);
-
 public sealed class AddParticipantHandler
 {
     private readonly ITripRepository _repo;

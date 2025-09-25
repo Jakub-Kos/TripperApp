@@ -3,8 +3,6 @@ using TripPlanner.Core.Domain.Domain.Primitives;
 using TripPlanner.Core.Domain.Domain.Aggregates; // <-- for DateOptionId
 namespace TripPlanner.Core.Application.Application.Trips;
 
-public sealed record ProposeDateOptionCommand(string TripId, DateOnly Date);
-
 public sealed class ProposeDateOptionHandler
 {
     private readonly ITripRepository _repo;

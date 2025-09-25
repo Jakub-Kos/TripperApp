@@ -105,25 +105,3 @@ public sealed class Trip
         return p is not null && p.AddVote(voter);
     }
 }
-
-public readonly record struct DateOptionId(Guid Value)
-{
-    public static DateOptionId New() => new(Guid.NewGuid());
-    public override string ToString() => Value.ToString("D");
-}
-
-public sealed class DateOption
-{
-    private readonly HashSet<UserId> _votes = new();
-    public DateOptionId Id { get; }
-    public DateOnly Date { get; }
-
-    public IReadOnlyCollection<UserId> Votes => _votes;
-
-    internal DateOption(DateOptionId id, DateOnly date)
-    {
-        Id = id; Date = date;
-    }
-
-    internal void CastVote(UserId user) => _votes.Add(user);
-}
