@@ -57,7 +57,7 @@ public static class TripsEndpoints
 
                     var query = db.Trips
                         .AsNoTracking()
-                        .Where(t => t.Participants.Any(p => p.UserId == me));
+                        .Where(t => t.OrganizerId == me || t.Participants.Any(p => p.UserId == me));
 
                     if (includeFinished != true)
                         query = query.Where(t => !t.IsFinished);

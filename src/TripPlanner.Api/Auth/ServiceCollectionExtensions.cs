@@ -22,6 +22,8 @@ public static class ServiceCollectionExtensions
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, o =>
             {
+                // Preserve original JWT claim types (keep 'sub', 'email', etc.)
+                o.MapInboundClaims = false;
                 o.TokenValidationParameters = new()
                 {
                     ValidateIssuer = true,
@@ -30,7 +32,8 @@ public static class ServiceCollectionExtensions
                     ValidIssuer = opts.Issuer,
                     ValidAudience = opts.Audience,
                     IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(opts.Key)),
-                    ClockSkew = TimeSpan.FromMinutes(2)
+                    ClockSkew = TimeSpan.FromMinutes(2),
+                    NameClaimType = "sub"
                 };
             });
 

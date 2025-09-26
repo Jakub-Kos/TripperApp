@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using FluentValidation;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -38,6 +39,13 @@ services.AddValidatorsFromAssemblyContaining<CreateTripRequestValidator>();
 // Swagger
 services.AddEndpointsApiExplorer();
 services.AddTripPlannerSwagger();
+
+// JSON (force camelCase)
+services.ConfigureHttpJsonOptions(o =>
+{
+    o.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+    o.SerializerOptions.DictionaryKeyPolicy = JsonNamingPolicy.CamelCase;
+});
 
 // Handlers
 services.AddScoped<CreateTripHandler>();
@@ -140,7 +148,7 @@ app.MapPost("/auth/login", async (LoginRequest req, IUserRepository users, IJwtS
 
     await users.AddRefreshToken(user.UserId, refreshHash, clock.UtcNow.AddDays(jwtOptions.RefreshTokenDays), ct);
 
-    return Results.Ok(new LoginResponse(access, rawRefresh, (int)TimeSpan.FromMinutes(jwtOptions.AccessTokenMinutes).TotalSeconds));
+    return Results.Json(new LoginResponse(access, rawRefresh, (int)TimeSpan.FromMinutes(jwtOptions.AccessTokenMinutes).TotalSeconds));
 }).AllowAnonymous();
 
 app.MapPost("/auth/refresh", async (RefreshRequest req, IUserRepository users, IJwtService jwt, JwtOptions jwtOpts, IConfiguration cfg, IClock clock, CancellationToken ct) =>
@@ -161,7 +169,7 @@ app.MapPost("/auth/refresh", async (RefreshRequest req, IUserRepository users, I
     await users.RevokeRefreshToken(presentedHash, clock.UtcNow, ct);
     await users.AddRefreshToken(user.UserId, newRefreshHash, clock.UtcNow.AddDays(jwtOpts.RefreshTokenDays), ct);
 
-    return Results.Ok(new RefreshResponse(
+    return Results.Json(new RefreshResponse(
         access,
         newRefreshRaw,
         (int)TimeSpan.FromMinutes(jwtOpts.AccessTokenMinutes).TotalSeconds));
