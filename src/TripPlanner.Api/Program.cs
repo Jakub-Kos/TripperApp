@@ -187,3 +187,5 @@ app.MapPost("/auth/logout", async (RefreshRequest req, IUserRepository users, IC
 v1.RequireAuthorization(); // everything under /api/v1 now requires a valid JWT
 
 app.Run();
+
+public partial class Program { }
