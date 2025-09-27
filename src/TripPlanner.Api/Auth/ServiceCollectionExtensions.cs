@@ -24,16 +24,23 @@ public static class ServiceCollectionExtensions
             {
                 // Preserve original JWT claim types (keep 'sub', 'email', etc.)
                 o.MapInboundClaims = false;
+                o.SaveToken = false;
                 o.TokenValidationParameters = new()
                 {
                     ValidateIssuer = true,
                     ValidateAudience = true,
                     ValidateIssuerSigningKey = true,
+                    ValidateLifetime = true,
+                    RequireExpirationTime = true,
+                    RequireSignedTokens = true,
                     ValidIssuer = opts.Issuer,
                     ValidAudience = opts.Audience,
                     IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(opts.Key)),
                     ClockSkew = TimeSpan.FromMinutes(2),
-                    NameClaimType = "sub"
+                    NameClaimType = "sub",
+#if NET8_0_OR_GREATER
+                    ValidAlgorithms = new[] { SecurityAlgorithms.HmacSha256 }
+#endif
                 };
             });
 

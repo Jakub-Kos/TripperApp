@@ -25,7 +25,7 @@ public sealed class JwtService(JwtOptions opts) : IJwtService
 
         var claims = new List<Claim>
         {
-            new(JwtRegisteredClaimNames.Sub, userId.ToString()),
+            new(JwtRegisteredClaimNames.Sub, userId.ToString("D")),
             new(JwtRegisteredClaimNames.Email, email),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N"))
         };
