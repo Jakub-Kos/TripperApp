@@ -36,6 +36,36 @@ public class SmokeApiTests : IClassFixture<WebApplicationFactory<Program>>
         return (obj.GetProperty("accessToken").GetString()!, obj.GetProperty("refreshToken").GetString()!);
     }
 
+    private static string NewEmail(string prefix) => $"{prefix}-{Guid.NewGuid():N}@t.local";
+
+    private static async Task DeleteTripAsync(HttpClient c, string accessToken, string tripId)
+    {
+        var prev = c.DefaultRequestHeaders.Authorization;
+        try
+        {
+            c.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+            await c.DeleteAsync($"/api/v1/trips/{tripId}");
+        }
+        finally
+        {
+            c.DefaultRequestHeaders.Authorization = prev;
+        }
+    }
+
+    private static async Task DeleteUserMeAsync(HttpClient c, string accessToken)
+    {
+        var prev = c.DefaultRequestHeaders.Authorization;
+        try
+        {
+            c.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+            await c.DeleteAsync("/api/v1/users/me");
+        }
+        finally
+        {
+            c.DefaultRequestHeaders.Authorization = prev;
+        }
+    }
+
     [Fact]
     public async Task Health_and_Auth_work()
     {
@@ -44,34 +74,47 @@ public class SmokeApiTests : IClassFixture<WebApplicationFactory<Program>>
         var health = await client.GetAsync("/health");
         health.EnsureSuccessStatusCode();
         // Register + Login
-        await RegisterAsync(client, "1", "1", "Alice A");
-        var (accessA, _) = await LoginAsync(client, "1", "1");
+        var email = NewEmail("alice");
+        await RegisterAsync(client, email, "1", "Alice A");
+        var (accessA, _) = await LoginAsync(client, email, "1");
         accessA.Should().NotBeNullOrEmpty();
+        // cleanup
+        await DeleteUserMeAsync(client, accessA);
     }
 
     [Fact]
     public async Task Trip_Create_List_Get()
     {
         var client = _factory.CreateClient();
-        await RegisterAsync(client, "1", "1", "Alice A");
-        var (accessA, _) = await LoginAsync(client, "1", "1");
+        var emailA = NewEmail("alice");
+        await RegisterAsync(client, emailA, "1", "Alice A");
+        var (accessA, _) = await LoginAsync(client, emailA, "1");
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessA);
 
-        var tripName = $"Trip {DateTime.UtcNow:O}";
-        var createTrip = await client.PostAsJsonAsync("/api/v1/trips", new { name = tripName });
-        createTrip.EnsureSuccessStatusCode();
-        var createdTrip = await createTrip.Content.ReadFromJsonAsync<JsonElement>();
-        var tripId = createdTrip.GetProperty("tripId").GetString()!;
+        string? tripId = null;
+        try
+        {
+            var tripName = $"Trip {DateTime.UtcNow:O}";
+            var createTrip = await client.PostAsJsonAsync("/api/v1/trips", new { name = tripName });
+            createTrip.EnsureSuccessStatusCode();
+            var createdTrip = await createTrip.Content.ReadFromJsonAsync<JsonElement>();
+            tripId = createdTrip.GetProperty("tripId").GetString()!;
 
-        var listTrips = await client.GetAsync("/api/v1/my/trips");
-        listTrips.EnsureSuccessStatusCode();
-        var tripsJson = await listTrips.Content.ReadFromJsonAsync<JsonElement>();
-        tripsJson.EnumerateArray().Any(e => e.GetProperty("name").GetString() == tripName).Should().BeTrue();
+            var listTrips = await client.GetAsync("/api/v1/my/trips");
+            listTrips.EnsureSuccessStatusCode();
+            var tripsJson = await listTrips.Content.ReadFromJsonAsync<JsonElement>();
+            tripsJson.EnumerateArray().Any(e => e.GetProperty("name").GetString() == tripName).Should().BeTrue();
 
-        var getTrip = await client.GetAsync($"/api/v1/trips/{tripId}");
-        getTrip.EnsureSuccessStatusCode();
-        var tripJson = await getTrip.Content.ReadFromJsonAsync<JsonElement>();
-        tripJson.GetProperty("name").GetString().Should().Be(tripName);
+            var getTrip = await client.GetAsync($"/api/v1/trips/{tripId}");
+            getTrip.EnsureSuccessStatusCode();
+            var tripJson = await getTrip.Content.ReadFromJsonAsync<JsonElement>();
+            tripJson.GetProperty("name").GetString().Should().Be(tripName);
+        }
+        finally
+        {
+            if (tripId is not null) await DeleteTripAsync(client, accessA, tripId);
+            await DeleteUserMeAsync(client, accessA);
+        }
     }
 
     [Fact]
@@ -79,132 +122,184 @@ public class SmokeApiTests : IClassFixture<WebApplicationFactory<Program>>
     {
         var client = _factory.CreateClient();
         // Register A and B
-        await RegisterAsync(client, "1", "1", "Alice A");
-        await RegisterAsync(client, "2", "2", "Bob B");
-        var (accessA, _) = await LoginAsync(client, "1", "1");
+        var emailA = NewEmail("alice");
+        var emailB = NewEmail("bob");
+        await RegisterAsync(client, emailA, "1", "Alice A");
+        await RegisterAsync(client, emailB, "2", "Bob B");
+        var (accessA, _) = await LoginAsync(client, emailA, "1");
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessA);
-        // Create a trip
-        var createTrip = await client.PostAsJsonAsync("/api/v1/trips", new { name = "Invite Trip" });
-        createTrip.EnsureSuccessStatusCode();
-        var createdTrip = await createTrip.Content.ReadFromJsonAsync<JsonElement>();
-        var tripId = createdTrip.GetProperty("tripId").GetString()!;
-        // Create invite code
-        var inviteResp = await client.PostAsJsonAsync($"/api/v1/trips/{tripId}/invites", new { expiresInMinutes = 60, maxUses = 5 });
-        inviteResp.EnsureSuccessStatusCode();
-        var inviteJson = await inviteResp.Content.ReadFromJsonAsync<JsonElement>();
-        var inviteCode = inviteJson.GetProperty("code").GetString()!;
-        // Login B and join
-        var (accessB, _) = await LoginAsync(client, "2", "2");
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessB);
-        var joinResp = await client.PostAsJsonAsync("/api/v1/trips/join", new { code = inviteCode });
-        joinResp.EnsureSuccessStatusCode();
+        string? tripId = null;
+        string? accessB = null;
+        try
+        {
+            // Create a trip
+            var createTrip = await client.PostAsJsonAsync("/api/v1/trips", new { name = "Invite Trip" });
+            createTrip.EnsureSuccessStatusCode();
+            var createdTrip = await createTrip.Content.ReadFromJsonAsync<JsonElement>();
+            tripId = createdTrip.GetProperty("tripId").GetString()!;
+            // Create invite code
+            var inviteResp = await client.PostAsJsonAsync($"/api/v1/trips/{tripId}/invites", new { expiresInMinutes = 60, maxUses = 5 });
+            inviteResp.EnsureSuccessStatusCode();
+            var inviteJson = await inviteResp.Content.ReadFromJsonAsync<JsonElement>();
+            var inviteCode = inviteJson.GetProperty("code").GetString()!;
+            // Login B and join
+            (accessB, _) = await LoginAsync(client, emailB, "2");
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessB);
+            var joinResp = await client.PostAsJsonAsync("/api/v1/trips/join", new { code = inviteCode });
+            joinResp.EnsureSuccessStatusCode();
+        }
+        finally
+        {
+            if (tripId is not null) await DeleteTripAsync(client, accessA, tripId);
+            await DeleteUserMeAsync(client, accessA);
+            if (accessB is not null) await DeleteUserMeAsync(client, accessB);
+        }
     }
 
     [Fact]
     public async Task Date_Propose_and_SelfVotes()
     {
         var client = _factory.CreateClient();
-        await RegisterAsync(client, "1", "1", "Alice A");
-        await RegisterAsync(client, "2", "2", "Bob B");
+        var emailA = NewEmail("alice");
+        var emailB = NewEmail("bob");
+        await RegisterAsync(client, emailA, "1", "Alice A");
+        await RegisterAsync(client, emailB, "2", "Bob B");
         // A creates trip
-        var (accessA, _) = await LoginAsync(client, "1", "1");
+        var (accessA, _) = await LoginAsync(client, emailA, "1");
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessA);
-        var createTrip = await client.PostAsJsonAsync("/api/v1/trips", new { name = "Date Trip" });
-        createTrip.EnsureSuccessStatusCode();
-        var createdTrip = await createTrip.Content.ReadFromJsonAsync<JsonElement>();
-        var tripId = createdTrip.GetProperty("tripId").GetString()!;
-        // Invite and join B
-        var inviteResp = await client.PostAsJsonAsync($"/api/v1/trips/{tripId}/invites", new { expiresInMinutes = 60, maxUses = 5 });
-        inviteResp.EnsureSuccessStatusCode();
-        var inviteCode = (await inviteResp.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString()!;
-        var (accessB, _) = await LoginAsync(client, "2", "2");
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessB);
-        var joinResp = await client.PostAsJsonAsync("/api/v1/trips/join", new { code = inviteCode });
-        joinResp.EnsureSuccessStatusCode();
-        // Propose a date
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessA);
-        var dateIso = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(10)).ToString("yyyy-MM-dd");
-        var proposeDate = await client.PostAsJsonAsync($"/api/v1/trips/{tripId}/date-options", new { date = dateIso });
-        proposeDate.EnsureSuccessStatusCode();
-        var dateOptionId = (await proposeDate.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("dateOptionId").GetString()!;
-        // Vote A
-        var voteDateA = await client.PostAsJsonAsync($"/api/v1/trips/{tripId}/date-votes", new { dateOptionId });
-        voteDateA.EnsureSuccessStatusCode();
-        // Vote B
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessB);
-        var voteDateB = await client.PostAsJsonAsync($"/api/v1/trips/{tripId}/date-votes", new { dateOptionId });
-        voteDateB.EnsureSuccessStatusCode();
+        string? tripId = null;
+        string? accessB = null;
+        try
+        {
+            var createTrip = await client.PostAsJsonAsync("/api/v1/trips", new { name = "Date Trip" });
+            createTrip.EnsureSuccessStatusCode();
+            var createdTrip = await createTrip.Content.ReadFromJsonAsync<JsonElement>();
+            tripId = createdTrip.GetProperty("tripId").GetString()!;
+            // Invite and join B
+            var inviteResp = await client.PostAsJsonAsync($"/api/v1/trips/{tripId}/invites", new { expiresInMinutes = 60, maxUses = 5 });
+            inviteResp.EnsureSuccessStatusCode();
+            var inviteCode = (await inviteResp.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString()!;
+            (accessB, _) = await LoginAsync(client, emailB, "2");
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessB);
+            var joinResp = await client.PostAsJsonAsync("/api/v1/trips/join", new { code = inviteCode });
+            joinResp.EnsureSuccessStatusCode();
+            // Propose a date
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessA);
+            var dateIso = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(10)).ToString("yyyy-MM-dd");
+            var proposeDate = await client.PostAsJsonAsync($"/api/v1/trips/{tripId}/date-options", new { date = dateIso });
+            proposeDate.EnsureSuccessStatusCode();
+            var dateOptionId = (await proposeDate.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("dateOptionId").GetString()!;
+            // Vote A
+            var voteDateA = await client.PostAsJsonAsync($"/api/v1/trips/{tripId}/date-votes", new { dateOptionId });
+            voteDateA.EnsureSuccessStatusCode();
+            // Vote B
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessB);
+            var voteDateB = await client.PostAsJsonAsync($"/api/v1/trips/{tripId}/date-votes", new { dateOptionId });
+            voteDateB.EnsureSuccessStatusCode();
+        }
+        finally
+        {
+            if (tripId is not null) await DeleteTripAsync(client, accessA, tripId);
+            await DeleteUserMeAsync(client, accessA);
+            if (accessB is not null) await DeleteUserMeAsync(client, accessB);
+        }
     }
 
     [Fact]
     public async Task Destination_Propose_List_and_SelfVotes()
     {
         var client = _factory.CreateClient();
-        await RegisterAsync(client, "1", "1", "Alice A");
-        await RegisterAsync(client, "2", "2", "Bob B");
+        var emailA = NewEmail("alice");
+        var emailB = NewEmail("bob");
+        await RegisterAsync(client, emailA, "1", "Alice A");
+        await RegisterAsync(client, emailB, "2", "Bob B");
         // A creates trip
-        var (accessA, _) = await LoginAsync(client, "1", "1");
+        var (accessA, _) = await LoginAsync(client, emailA, "1");
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessA);
-        var createTrip = await client.PostAsJsonAsync("/api/v1/trips", new { name = "Destination Trip" });
-        createTrip.EnsureSuccessStatusCode();
-        var createdTrip = await createTrip.Content.ReadFromJsonAsync<JsonElement>();
-        var tripId = createdTrip.GetProperty("tripId").GetString()!;
-        // Invite and join B
-        var inviteResp = await client.PostAsJsonAsync($"/api/v1/trips/{tripId}/invites", new { expiresInMinutes = 60, maxUses = 5 });
-        inviteResp.EnsureSuccessStatusCode();
-        var inviteCode = (await inviteResp.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString()!;
-        var (accessB, _) = await LoginAsync(client, "2", "2");
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessB);
-        var joinResp = await client.PostAsJsonAsync("/api/v1/trips/join", new { code = inviteCode });
-        joinResp.EnsureSuccessStatusCode();
-        // Propose destination
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessA);
-        var proposeDest = await client.PostAsJsonAsync($"/api/v1/trips/{tripId}/destinations", new { title = "Beach", description = "Sunny", imageUrls = Array.Empty<string>() });
-        proposeDest.EnsureSuccessStatusCode();
-        var destId = (await proposeDest.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("destinationId").GetString()!;
-        // List
-        var listDest = await client.GetAsync($"/api/v1/trips/{tripId}/destinations");
-        listDest.EnsureSuccessStatusCode();
-        // Vote A
-        var voteDestA = await client.PostAsync($"/api/v1/trips/{tripId}/destinations/{destId}/votes", content: null);
-        voteDestA.EnsureSuccessStatusCode();
-        // Vote B
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessB);
-        var voteDestB = await client.PostAsync($"/api/v1/trips/{tripId}/destinations/{destId}/votes", content: null);
-        voteDestB.EnsureSuccessStatusCode();
+        string? tripId = null;
+        string? accessB = null;
+        try
+        {
+            var createTrip = await client.PostAsJsonAsync("/api/v1/trips", new { name = "Destination Trip" });
+            createTrip.EnsureSuccessStatusCode();
+            var createdTrip = await createTrip.Content.ReadFromJsonAsync<JsonElement>();
+            tripId = createdTrip.GetProperty("tripId").GetString()!;
+            // Invite and join B
+            var inviteResp = await client.PostAsJsonAsync($"/api/v1/trips/{tripId}/invites", new { expiresInMinutes = 60, maxUses = 5 });
+            inviteResp.EnsureSuccessStatusCode();
+            var inviteCode = (await inviteResp.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString()!;
+            (accessB, _) = await LoginAsync(client, emailB, "2");
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessB);
+            var joinResp = await client.PostAsJsonAsync("/api/v1/trips/join", new { code = inviteCode });
+            joinResp.EnsureSuccessStatusCode();
+            // Propose destination
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessA);
+            var proposeDest = await client.PostAsJsonAsync($"/api/v1/trips/{tripId}/destinations", new { title = "Beach", description = "Sunny", imageUrls = Array.Empty<string>() });
+            proposeDest.EnsureSuccessStatusCode();
+            var destId = (await proposeDest.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("destinationId").GetString()!;
+            // List
+            var listDest = await client.GetAsync($"/api/v1/trips/{tripId}/destinations");
+            listDest.EnsureSuccessStatusCode();
+            // Vote A
+            var voteDestA = await client.PostAsync($"/api/v1/trips/{tripId}/destinations/{destId}/votes", content: null);
+            voteDestA.EnsureSuccessStatusCode();
+            // Vote B
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessB);
+            var voteDestB = await client.PostAsync($"/api/v1/trips/{tripId}/destinations/{destId}/votes", content: null);
+            voteDestB.EnsureSuccessStatusCode();
+        }
+        finally
+        {
+            if (tripId is not null) await DeleteTripAsync(client, accessA, tripId);
+            await DeleteUserMeAsync(client, accessA);
+            if (accessB is not null) await DeleteUserMeAsync(client, accessB);
+        }
     }
 
     [Fact]
     public async Task Placeholder_ProxyVote_and_Claim()
     {
         var client = _factory.CreateClient();
-        await RegisterAsync(client, "1", "1", "Alice A");
-        await RegisterAsync(client, "2", "2", "Bob B");
+        var emailA = NewEmail("alice");
+        var emailB = NewEmail("bob");
+        await RegisterAsync(client, emailA, "1", "Alice A");
+        await RegisterAsync(client, emailB, "2", "Bob B");
         // A creates trip
-        var (accessA, _) = await LoginAsync(client, "1", "1");
+        var (accessA, _) = await LoginAsync(client, emailA, "1");
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessA);
-        var createTrip = await client.PostAsJsonAsync("/api/v1/trips", new { name = "Placeholder Trip" });
-        createTrip.EnsureSuccessStatusCode();
-        var createdTrip = await createTrip.Content.ReadFromJsonAsync<JsonElement>();
-        var tripId = createdTrip.GetProperty("tripId").GetString()!;
-        // Propose destination (so we can vote on it)
-        var proposeDest = await client.PostAsJsonAsync($"/api/v1/trips/{tripId}/destinations", new { title = "Beach", description = "Sunny", imageUrls = Array.Empty<string>() });
-        proposeDest.EnsureSuccessStatusCode();
-        var destId = (await proposeDest.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("destinationId").GetString()!;
-        // Create placeholder and claim code
-        var createPh = await client.PostAsJsonAsync($"/api/v1/trips/{tripId}/placeholders", new { displayName = "Guest X" });
-        createPh.EnsureSuccessStatusCode();
-        var placeholderId = (await createPh.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("participantId").GetString()!;
-        var issueClaim = await client.PostAsJsonAsync($"/api/v1/trips/{tripId}/placeholders/{placeholderId}/claim-codes", new { expiresInMinutes = 30 });
-        issueClaim.EnsureSuccessStatusCode();
-        var claimCode = (await issueClaim.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString()!;
-        // Proxy vote for placeholder
-        var proxyVote = await client.PostAsJsonAsync($"/api/v1/trips/{tripId}/destinations/{destId}/votes/proxy", new { participantId = placeholderId });
-        proxyVote.EnsureSuccessStatusCode();
-        // B claims placeholder
-        var (accessB, _) = await LoginAsync(client, "2", "2");
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessB);
-        var claim = await client.PostAsJsonAsync("/api/v1/trips/placeholders/claim", new { code = claimCode, displayName = "Bob B" });
-        claim.EnsureSuccessStatusCode();
+        string? tripId = null;
+        string? accessB = null;
+        try
+        {
+            var createTrip = await client.PostAsJsonAsync("/api/v1/trips", new { name = "Placeholder Trip" });
+            createTrip.EnsureSuccessStatusCode();
+            var createdTrip = await createTrip.Content.ReadFromJsonAsync<JsonElement>();
+            tripId = createdTrip.GetProperty("tripId").GetString()!;
+            // Propose destination (so we can vote on it)
+            var proposeDest = await client.PostAsJsonAsync($"/api/v1/trips/{tripId}/destinations", new { title = "Beach", description = "Sunny", imageUrls = Array.Empty<string>() });
+            proposeDest.EnsureSuccessStatusCode();
+            var destId = (await proposeDest.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("destinationId").GetString()!;
+            // Create placeholder and claim code
+            var createPh = await client.PostAsJsonAsync($"/api/v1/trips/{tripId}/placeholders", new { displayName = "Guest X" });
+            createPh.EnsureSuccessStatusCode();
+            var placeholderId = (await createPh.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("participantId").GetString()!;
+            var issueClaim = await client.PostAsJsonAsync($"/api/v1/trips/{tripId}/placeholders/{placeholderId}/claim-codes", new { expiresInMinutes = 30 });
+            issueClaim.EnsureSuccessStatusCode();
+            var claimCode = (await issueClaim.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString()!;
+            // Proxy vote for placeholder
+            var proxyVote = await client.PostAsJsonAsync($"/api/v1/trips/{tripId}/destinations/{destId}/votes/proxy", new { participantId = placeholderId });
+            proxyVote.EnsureSuccessStatusCode();
+            // B claims placeholder
+            (accessB, _) = await LoginAsync(client, emailB, "2");
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessB);
+            var claim = await client.PostAsJsonAsync("/api/v1/trips/placeholders/claim", new { code = claimCode, displayName = "Bob B" });
+            claim.EnsureSuccessStatusCode();
+        }
+        finally
+        {
+            if (tripId is not null) await DeleteTripAsync(client, accessA, tripId);
+            await DeleteUserMeAsync(client, accessA);
+            if (accessB is not null) await DeleteUserMeAsync(client, accessB);
+        }
     }
 }

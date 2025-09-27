@@ -101,6 +101,34 @@ public static class TripsEndpoints
             .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
             .Produces(StatusCodes.Status403Forbidden);
         
+        v1.MapDelete("/trips/{tripId:guid}",
+                async (Guid tripId, AppDbContext db, System.Security.Claims.ClaimsPrincipal user, CancellationToken ct) =>
+                {
+                    var sub = user.FindFirst("sub")?.Value ?? user.FindFirst("nameid")?.Value;
+                    if (!Guid.TryParse(sub, out var me)) return Results.Unauthorized();
+
+                    var trip = await db.Trips.FirstOrDefaultAsync(t => t.TripId == tripId, ct);
+                    if (trip is null) return Results.NotFound();
+
+                    if (trip.OrganizerId != me) return Results.Forbid();
+
+                    // Clean up records not bound by FK cascade
+                    var invites = db.TripInvites.Where(i => i.TripId == tripId);
+                    var claims = db.PlaceholderClaims.Where(c => c.TripId == tripId);
+                    db.TripInvites.RemoveRange(invites);
+                    db.PlaceholderClaims.RemoveRange(claims);
+
+                    db.Trips.Remove(trip); // cascades will remove participants, date options, destinations, votes, images
+                    await db.SaveChangesAsync(ct);
+                    return Results.NoContent();
+                })
+            .WithTags("Trips")
+            .WithSummary("Delete a trip")
+            .WithDescription("Deletes a trip you organize and all related data. Useful for test cleanup.")
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status403Forbidden);
+        
         return v1;
     }
 }
