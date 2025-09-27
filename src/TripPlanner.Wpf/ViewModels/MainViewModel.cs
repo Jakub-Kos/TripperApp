@@ -13,6 +13,21 @@ namespace TripPlanner.Wpf.ViewModels;
 
 public partial class MainViewModel : ObservableObject
 {
+    public sealed class TripListItem
+    {
+        public string TripId { get; }
+        public string Name { get; }
+        public string Description { get; }
+        public bool IsFinished { get; }
+        public string DescriptionSnippet => string.IsNullOrWhiteSpace(Description)
+            ? ""
+            : (Description.Length <= 80 ? Description : Description.Substring(0, 80) + "...");
+        public TripListItem(string tripId, string name, string description, bool isFinished)
+        {
+            TripId = tripId; Name = name; Description = description ?? ""; IsFinished = isFinished;
+        }
+    }
+
     private readonly ITripPlannerClient _client;
 
     [ObservableProperty] private string? _status;
@@ -22,9 +37,9 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _newTripName = "";
 
     // Selection & summary
-    public ObservableCollection<TripDto> Trips { get; } = new();
+    public ObservableCollection<TripListItem> Trips { get; } = new();
 
-    [ObservableProperty] private TripDto? _selectedTrip;
+    [ObservableProperty] private TripListItem? _selectedTrip;
     [ObservableProperty] private TripSummaryDto? _selectedSummary;
 
     // Participant & date actions
@@ -57,6 +72,17 @@ public partial class MainViewModel : ObservableObject
     // Overview panel state
     [ObservableProperty] private string _descriptionMarkdown = "";
     [ObservableProperty] private bool _selectedTripIsFinished;
+    [ObservableProperty] private bool _isEditingOverview;
+
+    public bool IsOverviewReadOnly => !IsEditingOverview;
+
+    partial void OnIsEditingOverviewChanged(bool value)
+    {
+        OnPropertyChanged(nameof(IsOverviewReadOnly));
+    }
+
+    private string _originalDescription = "";
+    private bool _originalIsFinished;
 
     public MainViewModel(ITripPlannerClient client, DestinationsViewModel destinationsVm)
     {
@@ -94,7 +120,14 @@ public partial class MainViewModel : ObservableObject
         var page = await _client.ListMyTripsAsync(includeFinished: IncludeFinished, skip: 0, take: 50, ct);
         Trips.Clear();
         foreach (var t in page)
-            Trips.Add(new TripDto(t.TripId, t.Name, t.OrganizerId));
+        {
+            // Fetch summary to get description and finished flag
+            var sum = await _client.GetTripByIdAsync(t.TripId, ct);
+            if (sum is not null)
+                Trips.Add(new TripListItem(sum.TripId, sum.Name, sum.Description, sum.IsFinished));
+            else
+                Trips.Add(new TripListItem(t.TripId, t.Name, "", false));
+        }
 
         Status = $"Loaded {Trips.Count} trips (includeFinished={IncludeFinished}).";
     }
@@ -120,7 +153,7 @@ public partial class MainViewModel : ObservableObject
         });
     }
 
-    partial void OnSelectedTripChanged(TripDto? value)
+    partial void OnSelectedTripChanged(TripListItem? value)
     {
         // Keep SelectedTripId in sync (when binding uses SelectedItem)
         var newId = value?.TripId;
@@ -143,12 +176,79 @@ public partial class MainViewModel : ObservableObject
 
     private async Task LoadSummaryAsync(string? tripId)
     {
-        if (string.IsNullOrWhiteSpace(tripId)) { SelectedSummary = null; return; }
+        if (string.IsNullOrWhiteSpace(tripId)) { SelectedSummary = null; DescriptionMarkdown = ""; SelectedTripIsFinished = false; IsEditingOverview = false; return; }
 
         await GuardAsync(async () =>
         {
             SelectedSummary = await _client.GetTripByIdAsync(tripId);
+            var desc = SelectedSummary?.Description ?? string.Empty;
+            DescriptionMarkdown = desc;
+            SelectedTripIsFinished = SelectedSummary?.IsFinished ?? false;
+            // reset edit state and originals on new selection
+            _originalDescription = DescriptionMarkdown;
+            _originalIsFinished = SelectedTripIsFinished;
+            IsEditingOverview = false;
             // Date options are no longer part of TripSummary; leave SelectedDateOptionId unchanged.
+        });
+    }
+
+    [RelayCommand]
+    private void EnterEditOverview()
+    {
+        if (SelectedTrip is null) return;
+        _originalDescription = DescriptionMarkdown;
+        _originalIsFinished = SelectedTripIsFinished;
+        IsEditingOverview = true;
+        Status = "Editing overview...";
+    }
+
+    [RelayCommand]
+    private void CancelEditOverview()
+    {
+        DescriptionMarkdown = _originalDescription;
+        SelectedTripIsFinished = _originalIsFinished;
+        IsEditingOverview = false;
+        Status = "Discarded changes.";
+    }
+
+    [RelayCommand]
+    private async Task SaveOverviewAsync()
+    {
+        if (SelectedTrip is null) { Status = "Select a trip."; return; }
+        await GuardAsync(async () =>
+        {
+            bool any = false;
+            if (DescriptionMarkdown != _originalDescription)
+            {
+                var res = await _client.SetTripDescriptionAsync(SelectedTrip.TripId, DescriptionMarkdown);
+                if (!res.ok)
+                {
+                    Status = res.forbidden ? "Only organizer can change description." : "Trip not found.";
+                    return;
+                }
+                any = true;
+            }
+            if (SelectedTripIsFinished != _originalIsFinished)
+            {
+                var ok = await _client.UpdateTripStatusAsync(SelectedTrip.TripId, SelectedTripIsFinished);
+                if (!ok)
+                {
+                    Status = "Failed to update status.";
+                    return;
+                }
+                any = true;
+            }
+            if (any)
+            {
+                // refresh summary
+                await LoadSummaryAsync(SelectedTrip.TripId);
+                Status = "Saved changes.";
+            }
+            else
+            {
+                Status = "No changes.";
+            }
+            IsEditingOverview = false;
         });
     }
 

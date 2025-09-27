@@ -8,6 +8,7 @@ public sealed record TripSummaryDto(
     string OrganizerId,
     string Description,
     string CreatedAt,
+    bool IsFinished,
     IReadOnlyList<string> Participants);
 
 public sealed record DateOptionDto(string DateOptionId, string Date, int VotesCount);

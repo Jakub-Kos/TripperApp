@@ -15,6 +15,7 @@ public static class TripMapping
             t.OrganizerId.Value.ToString("D"),
             "",
             "",
+            false,
             t.Participants.Select(p => p.Value.ToString("D")).ToList()
         );
 }

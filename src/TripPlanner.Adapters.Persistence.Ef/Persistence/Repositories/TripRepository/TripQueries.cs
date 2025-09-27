@@ -57,8 +57,11 @@ internal sealed class TripQueries
 
         var participants = await _db.Participants
             .AsNoTracking()
+            .Include(p => p.User)
             .Where(p => p.TripId == id.Value)
-            .Select(p => p.ParticipantId.ToString())
+            .Select(p => p.User != null
+                ? p.User.DisplayName
+                : (string.IsNullOrWhiteSpace(p.DisplayName) ? p.ParticipantId.ToString() : p.DisplayName))
             .ToListAsync(ct);
 
         return new TripSummaryDto(
@@ -67,6 +70,7 @@ internal sealed class TripQueries
             trip.OrganizerId.ToString(),
             trip.DescriptionMarkdown,
             trip.CreatedAt.ToString("O", CultureInfo.InvariantCulture),
+            trip.IsFinished,
             participants
         );
     }

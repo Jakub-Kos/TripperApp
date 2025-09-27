@@ -25,6 +25,7 @@ public sealed class TripSummaryDtoExample : IExamplesProvider<TripSummaryDto>
             "00000000-0000-0000-0000-000000000001",
             "A beautiful hike to Snezka. Bring warm clothes.",
             "2025-09-27T18:10:00.0000000+00:00",
+            false,
             new[] { "00000000-0000-0000-0000-000000000002" }
         );
 }

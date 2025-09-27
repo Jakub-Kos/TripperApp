@@ -150,6 +150,7 @@ public sealed class InMemoryTripRepository : ITripRepository, IUnitOfWork
             trip.OrganizerId.Value.ToString("D"),
             "",
             "",
+            false,
             trip.Participants.Select(p => p.Value.ToString("D")).ToList()
         );
         return Task.FromResult<TripSummaryDto?>(dto);
