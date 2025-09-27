@@ -47,4 +47,8 @@ public sealed class TripRepository : ITripRepository
 
     public Task<bool> CastDestinationVoteAsAsync(Guid tripId, Guid destinationId, Guid participantId, CancellationToken ct)
         => _writer.CastDestinationVoteAsAsync(tripId, destinationId, participantId, ct);
+    
+    public Task<TripPlanner.Core.Contracts.Contracts.V1.Trips.TripSummaryDto?> GetSummaryAsync(TripId id, CancellationToken ct)
+        => _queries.GetSummaryAsync(id, ct);
+
 }

@@ -7,7 +7,7 @@ namespace TripPlanner.Api.Swagger.Examples;
 public sealed class CreateTripRequestExample : IExamplesProvider<CreateTripRequest>
 {
     public CreateTripRequest GetExamples() =>
-        new("Snezka Hike", "00000000-0000-0000-0000-000000000001");
+        new("Snezka Hike");
 }
 
 public sealed class TripDtoExample : IExamplesProvider<TripDto>

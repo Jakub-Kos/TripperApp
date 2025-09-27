@@ -13,12 +13,16 @@ public sealed class CreateTripHandler
 
     public async Task<CreateTripResponse> Handle(CreateTripCommand cmd, CancellationToken ct)
     {
-        var organizer = new UserId(Guid.Parse(cmd.OrganizerId));
+        var organizer = new UserId(cmd.OrganizerId);
         var trip = Trip.Create(cmd.Name, organizer);
+        // Persist the trip first to guarantee FK order, then add organizer as participant
         await _trips.AddAsync(trip, ct);
+        await _uow.SaveChangesAsync(ct);
+
         // Ensure the organizer is also a participant so they can see and vote in their own trip
         await _trips.AddParticipant(trip.Id, organizer, ct);
         await _uow.SaveChangesAsync(ct);
+
         var dto = new TripDto(trip.Id.Value.ToString("D"), trip.Name, trip.OrganizerId.Value.ToString("D"));
         return new CreateTripResponse(dto);
     }

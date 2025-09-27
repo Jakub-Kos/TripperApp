@@ -62,9 +62,10 @@ public static class InvitesEndpoints
 
                     var invite = await db.TripInvites
                         .AsTracking()
-                        .FirstOrDefaultAsync(i => i.CodeHash == hash && i.RevokedAt == null && i.ExpiresAt > now, ct);
+                        .FirstOrDefaultAsync(i => i.CodeHash == hash, ct);
 
-                    if (invite is null) return Results.BadRequest("Invalid or expired code");
+                    if (invite is null || invite.RevokedAt != null || invite.ExpiresAt <= now)
+                        return Results.BadRequest("Invalid or expired code");
 
                     var already = await db.Participants.AnyAsync(p => p.TripId == invite.TripId && p.UserId == me, ct);
                     if (!already)

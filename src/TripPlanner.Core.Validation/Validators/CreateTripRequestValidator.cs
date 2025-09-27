@@ -12,11 +12,6 @@ public sealed class CreateTripRequestValidator : AbstractValidator<CreateTripReq
             .Cascade(CascadeMode.Stop)
             .NotEmpty().WithMessage("Name is required.")
             .MaximumLength(200).WithMessage("Name must be <= 200 chars.");
-
-        RuleFor(x => x.OrganizerId)
-            .Cascade(CascadeMode.Stop)
-            .NotEmpty().WithMessage("OrganizerId is required.")
-            .Must(BeGuid).WithMessage("OrganizerId must be a GUID.");
     }
 
     private static bool BeGuid(string s) => Guid.TryParse(s, out _);

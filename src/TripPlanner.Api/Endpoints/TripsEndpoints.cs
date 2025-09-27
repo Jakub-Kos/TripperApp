@@ -21,7 +21,7 @@ public static class TripsEndpoints
                     if (!Guid.TryParse(sub, out var organizer)) return Results.Unauthorized();
 
                     // If CreateTripCommand expects a string organizerId, pass organizer.ToString("D")
-                    var result = await handler.Handle(new CreateTripCommand(req.Name, organizer.ToString("D")), ct);
+                    var result = await handler.Handle(new CreateTripCommand(req.Name, organizer), ct);
                     return Results.Created($"/api/v1/trips/{result.Trip.TripId}", result.Trip);
                 })
             .AddEndpointFilter(new ValidationFilter<CreateTripRequest>())

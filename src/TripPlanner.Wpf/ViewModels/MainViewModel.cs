@@ -145,7 +145,7 @@ public partial class MainViewModel : ObservableObject
     {
         await GuardAsync(async () =>
         {
-            var created = await _client.CreateTripAsync(new CreateTripRequest(NewTripName, OrganizerId));
+            var created = await _client.CreateTripAsync(new CreateTripRequest(NewTripName));
             await RefreshAsync();
             SelectedTrip = Trips.FirstOrDefault(t => t.TripId == created.TripId);
             Status = $"Created trip “{created.Name}”.";

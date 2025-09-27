@@ -1,5 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using TripPlanner.Core.Application.Application.Abstractions;
+using TripPlanner.Core.Contracts.Contracts.V1.Trips;
 using TripPlanner.Core.Domain.Domain.Aggregates;
 using TripPlanner.Core.Domain.Domain.Primitives;
 
@@ -134,6 +135,11 @@ public sealed class InMemoryTripRepository : ITripRepository, IUnitOfWork
     }
 
     public Task AddAnonymousAsync(Guid tripId, string displayName, CancellationToken ct)
+    {
+        throw new NotImplementedException();
+    }
+    
+    public Task<TripSummaryDto?> GetSummaryAsync(TripId id, CancellationToken ct)
     {
         throw new NotImplementedException();
     }

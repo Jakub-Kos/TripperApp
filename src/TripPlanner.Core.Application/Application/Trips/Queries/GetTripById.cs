@@ -12,7 +12,9 @@ public sealed class GetTripByIdHandler
     public async Task<TripSummaryDto?> Handle(GetTripByIdQuery q, CancellationToken ct)
     {
         if (!Guid.TryParse(q.TripId, out var idGuid)) return null;
-        var trip = await _repo.Get(new TripId(idGuid), ct);
-        return trip is null ? null : TripMapping.ToSummary(trip);
+        // var trip = await _repo.Get(new TripId(idGuid), ct);
+        // return trip is null ? null : TripMapping.ToSummary(trip);
+        var dto = await _repo.GetSummaryAsync(new TripId(idGuid), ct);
+        return dto;
     }
 }
