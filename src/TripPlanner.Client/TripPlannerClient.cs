@@ -24,6 +24,13 @@ public sealed class TripPlannerClient(HttpClient http) : ITripPlannerClient
         throw new ApiException(res.StatusCode, "Unexpected status.");
     }
 
+    public async Task<IReadOnlyList<TripDto>> ListMyTripsAsync(bool includeFinished = false, int skip = 0, int take = 50, CancellationToken ct = default)
+    {
+        var qs = $"?includeFinished={(includeFinished ? "true" : "false")}&skip={skip}&take={take}";
+        var dto = await http.GetFromJsonAsync<List<TripDto>>($"/api/v1/my/trips{qs}", ct);
+        return dto ?? [];
+    }
+
     public async Task<IReadOnlyList<TripDto>> ListTripsAsync(int skip = 0, int take = 50, CancellationToken ct = default)
     {
         var qs = $"?skip={skip}&take={take}";
@@ -67,6 +74,15 @@ public sealed class TripPlannerClient(HttpClient http) : ITripPlannerClient
         if (res.StatusCode == HttpStatusCode.NoContent) return true;
         if (res.StatusCode == HttpStatusCode.NotFound) return false;
         await ThrowIfError(res, "Failed to cast vote.", ct);
+        return false;
+    }
+
+    public async Task<bool> UpdateTripStatusAsync(string tripId, bool isFinished, CancellationToken ct = default)
+    {
+        using var res = await http.PatchAsJsonAsync($"/api/v1/trips/{tripId}/status", new { isFinished }, ct);
+        if (res.StatusCode == HttpStatusCode.NoContent) return true;
+        if (res.StatusCode == HttpStatusCode.NotFound) return false;
+        await ThrowIfError(res, "Failed to update trip status.", ct);
         return false;
     }
     

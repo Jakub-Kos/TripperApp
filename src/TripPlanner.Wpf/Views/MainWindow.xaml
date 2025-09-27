@@ -1,7 +1,8 @@
 ﻿<Window x:Class="TripPlanner.Wpf.Views.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="TripPlanner" Height="620" Width="980">
+        Title="TripPlanner" Height="620" Width="980"
+        x:Name="Root">
   <DockPanel>
     <!-- Menu bar -->
     <Menu DockPanel.Dock="Top">

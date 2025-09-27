@@ -77,14 +77,23 @@ public partial class MainViewModel : ObservableObject
         });
     }
 
+    [ObservableProperty]
+    private bool _includeFinished = false;
+
+    partial void OnIncludeFinishedChanged(bool value)
+    {
+        // Auto refresh when toggled
+        _ = RefreshAsync();
+    }
+
     private async Task LoadTripsAsync(CancellationToken ct)
     {
-        var page = await _client.ListTripsAsync(skip: 0, take: 50, ct);
+        var page = await _client.ListMyTripsAsync(includeFinished: IncludeFinished, skip: 0, take: 50, ct);
         Trips.Clear();
         foreach (var t in page)
             Trips.Add(new TripDto(t.TripId, t.Name, t.OrganizerId));
 
-        Status = $"Loaded {Trips.Count} trips.";
+        Status = $"Loaded {Trips.Count} trips (includeFinished={IncludeFinished}).";
     }
 
     [RelayCommand]
@@ -208,6 +217,18 @@ public partial class MainViewModel : ObservableObject
 
             Status = ok ? "Vote cast." : "Option not found.";
             await LoadSummaryAsync(SelectedTrip.TripId);
+        });
+    }
+
+    [RelayCommand]
+    private async Task MarkFinishedAsync()
+    {
+        if (SelectedTrip is null) { Status = "Select a trip."; return; }
+        await GuardAsync(async () =>
+        {
+            var ok = await _client.UpdateTripStatusAsync(SelectedTrip.TripId, true);
+            Status = ok ? "Marked as finished." : "Trip not found.";
+            await RefreshAsync();
         });
     }
 

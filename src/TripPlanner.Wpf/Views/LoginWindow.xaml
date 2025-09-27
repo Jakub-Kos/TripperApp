@@ -26,10 +26,17 @@
 
         <StackPanel Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2"
                     Orientation="Horizontal" HorizontalAlignment="Right">
-            <Button Content="Register" Margin="0,0,8,0" Click="OnRegister"/>
+            <Button x:Name="RegisterButton" Content="Register" Margin="0,0,8,0" Click="OnRegister"/>
             <Button Content="Cancel"  Margin="0,0,8,0" IsCancel="True"/>
-            <!-- keep your existing sign-in handler -->
-            <Button Content="Sign in" IsDefault="True" Click="OnSignInClick"/>
+            <Button x:Name="SignInButton" Content="Sign in" IsDefault="True" Click="OnSignInClick"/>
         </StackPanel>
+
+        <!-- Working overlay -->
+        <Border Grid.RowSpan="4" Grid.ColumnSpan="2" Background="#80FFFFFF" x:Name="WorkingOverlay" Visibility="Collapsed">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                <ProgressBar IsIndeterminate="True" Width="200" Height="20" Margin="0,0,0,12"/>
+                <TextBlock x:Name="WorkingText" Text="Processing..." HorizontalAlignment="Center" FontWeight="Bold"/>
+            </StackPanel>
+        </Border>
     </Grid>
 </Window>
