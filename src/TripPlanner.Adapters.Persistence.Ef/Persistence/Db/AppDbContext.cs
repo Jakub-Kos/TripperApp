@@ -117,6 +117,9 @@ public sealed class AppDbContext : DbContext
             .HasForeignKey(x => x.UserId)
             .OnDelete(DeleteBehavior.Restrict);
         
+        // Alternate key to allow FKs to ParticipantId from vote tables
+        e.HasAlternateKey(x => x.ParticipantId);
+        
         e.HasIndex(x => new { x.TripId, x.ParticipantId }).IsUnique();
         e.HasIndex(x => new { x.TripId, x.UserId }).IsUnique();
     }
@@ -142,10 +145,16 @@ public sealed class AppDbContext : DbContext
         
         e.Property(x => x.DateOptionId).IsRequired();
         e.Property(x => x.ParticipantId).IsRequired();
-        e.Property(x => x.UserId).IsRequired();
+        e.Property(x => x.UserId).IsRequired(false);
         
         e.HasIndex(x => new { x.DateOptionId, x.ParticipantId }).IsUnique();
-        e.HasIndex(x => new { x.DateOptionId, x.UserId });
+        
+        // FK to participant by alternate key (ParticipantId)
+        e.HasOne<ParticipantRecord>()
+            .WithMany()
+            .HasForeignKey(x => x.ParticipantId)
+            .HasPrincipalKey(p => p.ParticipantId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 
     private static void ConfigureDestination(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<DestinationRecord> e)
@@ -170,8 +179,11 @@ public sealed class AppDbContext : DbContext
     
     private static void ConfigureDestinationImage(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<DestinationImageRecord> e)
     {
-        e.HasKey(x => x.Id);
-        e.Property(x => x.Url).IsRequired().HasMaxLength(2048);
+        e.HasOne(img => img.Destination)
+            .WithMany(dest => dest.Images)
+            .HasForeignKey(img => img.DestinationId)
+            .OnDelete(DeleteBehavior.Cascade);
+
     }
     
     private static void ConfigureDestinationVote(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<DestinationVoteRecord> e)
@@ -181,10 +193,22 @@ public sealed class AppDbContext : DbContext
         
         e.Property(x => x.DestinationId).IsRequired();
         e.Property(x => x.ParticipantId).IsRequired(); 
-        e.Property(x => x.UserId).IsRequired();        
+        e.Property(x => x.UserId).IsRequired(false);
         
         e.HasIndex(x => new { x.DestinationId, x.ParticipantId }).IsUnique();
-        e.HasIndex(x => new { x.DestinationId, x.UserId }); // TODO delete like the others
+        
+        // Bind the navigation to Destination with the same FK to avoid duplicate shadow FKs (DestinationId1)
+        e.HasOne(v => v.Destination)
+            .WithMany(d => d.Votes)
+            .HasForeignKey(v => v.DestinationId)
+            .OnDelete(DeleteBehavior.Cascade);
+        
+        // FK to participant by alternate key (ParticipantId)
+        e.HasOne<ParticipantRecord>()
+            .WithMany()
+            .HasForeignKey(x => x.ParticipantId)
+            .HasPrincipalKey(p => p.ParticipantId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
     
     private static void ConfigureTripInvite(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<TripInviteRecord> e)

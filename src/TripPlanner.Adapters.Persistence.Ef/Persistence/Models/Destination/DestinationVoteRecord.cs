@@ -6,7 +6,7 @@ public sealed class DestinationVoteRecord
     public Guid DestinationId { get; set; }
     
     public Guid ParticipantId { get; set; }
-    public Guid UserId { get; set; } // TODO delete
+    public Guid? UserId { get; set; } // TODO delete
     
     public DestinationRecord Destination { get; set; } = default!;
 }

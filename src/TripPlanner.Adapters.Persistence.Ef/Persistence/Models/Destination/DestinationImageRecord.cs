@@ -4,6 +4,6 @@ public sealed class DestinationImageRecord
 {
     public int Id { get; set; }
     public Guid DestinationId { get; set; }
-    public string Url { get; set; } = default!;
-    public DestinationRecord Destination { get; set; } = default!;
+    public string Url { get; set; } = null!;
+    public DestinationRecord Destination { get; set; } = null!;
 }

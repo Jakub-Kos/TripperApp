@@ -6,5 +6,5 @@ public sealed class DateVoteRecord
     public Guid DateOptionId { get; set; }
     
     public Guid ParticipantId { get; set; }
-    public Guid UserId { get; set; } // TODO delete
+    public Guid? UserId { get; set; } // TODO delete
 }

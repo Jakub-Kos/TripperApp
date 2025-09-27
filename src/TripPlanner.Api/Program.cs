@@ -82,9 +82,9 @@ if (app.Environment.IsDevelopment())
         await db.Database.MigrateAsync();
     }
     catch (Microsoft.Data.Sqlite.SqliteException ex)
-        when (ex.SqliteErrorCode == 1 && ex.Message.Contains("duplicate column name"))
+        when (ex.SqliteErrorCode == 1 && (ex.Message.Contains("duplicate column name") || ex.Message.Contains("already exists")))
     {
-        // local DB drifted; rebuild
+        // local DB drifted; rebuild from scratch (common during dev when model changes)
         var path = Path.Combine(AppContext.BaseDirectory, "tripplanner.db");
         if (File.Exists(path)) File.Delete(path);
         await db.Database.MigrateAsync();

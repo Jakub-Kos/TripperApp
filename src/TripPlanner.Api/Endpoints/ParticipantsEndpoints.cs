@@ -95,9 +95,10 @@ public static class ParticipantsEndpoints
 
                 var claim = await db.PlaceholderClaims
                     .AsTracking()
-                    .FirstOrDefaultAsync(c => c.CodeHash == hash && c.RevokedAt == null && c.ExpiresAt > now, ct);
+                    .FirstOrDefaultAsync(c => c.CodeHash == hash, ct);
 
-                if (claim is null) return Results.BadRequest("Invalid or expired code");
+                if (claim is null || claim.RevokedAt != null || claim.ExpiresAt <= now)
+                    return Results.BadRequest("Invalid or expired code");
 
                 var placeholder = await db.Participants
                     .FirstOrDefaultAsync(p => p.TripId == claim.TripId && p.ParticipantId == claim.ParticipantId, ct);

@@ -109,15 +109,15 @@ namespace TripPlanner.Adapters.Persistence.Ef.Migrations
                     b.Property<Guid>("ParticipantId")
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("UserId")
+                    b.Property<Guid?>("UserId")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ParticipantId");
+
                     b.HasIndex("DateOptionId", "ParticipantId")
                         .IsUnique();
-
-                    b.HasIndex("DateOptionId", "UserId");
 
                     b.ToTable("DateVotes", (string)null);
                 });
@@ -131,19 +131,13 @@ namespace TripPlanner.Adapters.Persistence.Ef.Migrations
                     b.Property<Guid>("DestinationId")
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("DestinationId1")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("Url")
                         .IsRequired()
-                        .HasMaxLength(2048)
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
                     b.HasIndex("DestinationId");
-
-                    b.HasIndex("DestinationId1");
 
                     b.ToTable("DestinationImages");
                 });
@@ -183,23 +177,18 @@ namespace TripPlanner.Adapters.Persistence.Ef.Migrations
                     b.Property<Guid>("DestinationId")
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("DestinationId1")
-                        .HasColumnType("TEXT");
-
                     b.Property<Guid>("ParticipantId")
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("UserId")
+                    b.Property<Guid?>("UserId")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("DestinationId1");
+                    b.HasIndex("ParticipantId");
 
                     b.HasIndex("DestinationId", "ParticipantId")
                         .IsUnique();
-
-                    b.HasIndex("DestinationId", "UserId");
 
                     b.ToTable("DestinationVotes", (string)null);
                 });
@@ -388,19 +377,20 @@ namespace TripPlanner.Adapters.Persistence.Ef.Migrations
                         .HasForeignKey("DateOptionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Trip.ParticipantRecord", null)
+                        .WithMany()
+                        .HasForeignKey("ParticipantId")
+                        .HasPrincipalKey("ParticipantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Destination.DestinationImageRecord", b =>
                 {
-                    b.HasOne("TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Destination.DestinationRecord", null)
+                    b.HasOne("TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Destination.DestinationRecord", "Destination")
                         .WithMany("Images")
                         .HasForeignKey("DestinationId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Destination.DestinationRecord", "Destination")
-                        .WithMany()
-                        .HasForeignKey("DestinationId1")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -420,15 +410,16 @@ namespace TripPlanner.Adapters.Persistence.Ef.Migrations
 
             modelBuilder.Entity("TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Destination.DestinationVoteRecord", b =>
                 {
-                    b.HasOne("TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Destination.DestinationRecord", null)
+                    b.HasOne("TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Destination.DestinationRecord", "Destination")
                         .WithMany("Votes")
                         .HasForeignKey("DestinationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Destination.DestinationRecord", "Destination")
+                    b.HasOne("TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Trip.ParticipantRecord", null)
                         .WithMany()
-                        .HasForeignKey("DestinationId1")
+                        .HasForeignKey("ParticipantId")
+                        .HasPrincipalKey("ParticipantId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 

@@ -156,6 +156,7 @@ namespace TripPlanner.Adapters.Persistence.Ef.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_TripParticipants", x => x.Id);
+                    table.UniqueConstraint("AK_TripParticipants_ParticipantId", x => x.ParticipantId);
                     table.ForeignKey(
                         name: "FK_TripParticipants_Trips_TripId",
                         column: x => x.TripId,
@@ -171,35 +172,13 @@ namespace TripPlanner.Adapters.Persistence.Ef.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "DateVotes",
-                columns: table => new
-                {
-                    Id = table.Column<long>(type: "INTEGER", nullable: false)
-                        .Annotation("Sqlite:Autoincrement", true),
-                    DateOptionId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    ParticipantId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    UserId = table.Column<Guid>(type: "TEXT", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_DateVotes", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_DateVotes_DateOptions_DateOptionId",
-                        column: x => x.DateOptionId,
-                        principalTable: "DateOptions",
-                        principalColumn: "DateOptionId",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
                 name: "DestinationImages",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "INTEGER", nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
                     DestinationId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    Url = table.Column<string>(type: "TEXT", maxLength: 2048, nullable: false),
-                    DestinationId1 = table.Column<Guid>(type: "TEXT", nullable: false)
+                    Url = table.Column<string>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -210,11 +189,32 @@ namespace TripPlanner.Adapters.Persistence.Ef.Migrations
                         principalTable: "Destinations",
                         principalColumn: "DestinationId",
                         onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "DateVotes",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    DateOptionId = table.Column<Guid>(type: "TEXT", nullable: false),
+                    ParticipantId = table.Column<Guid>(type: "TEXT", nullable: false),
+                    UserId = table.Column<Guid>(type: "TEXT", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_DateVotes", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_DestinationImages_Destinations_DestinationId1",
-                        column: x => x.DestinationId1,
-                        principalTable: "Destinations",
-                        principalColumn: "DestinationId",
+                        name: "FK_DateVotes_DateOptions_DateOptionId",
+                        column: x => x.DateOptionId,
+                        principalTable: "DateOptions",
+                        principalColumn: "DateOptionId",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_DateVotes_TripParticipants_ParticipantId",
+                        column: x => x.ParticipantId,
+                        principalTable: "TripParticipants",
+                        principalColumn: "ParticipantId",
                         onDelete: ReferentialAction.Cascade);
                 });
 
@@ -226,8 +226,7 @@ namespace TripPlanner.Adapters.Persistence.Ef.Migrations
                         .Annotation("Sqlite:Autoincrement", true),
                     DestinationId = table.Column<Guid>(type: "TEXT", nullable: false),
                     ParticipantId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    UserId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    DestinationId1 = table.Column<Guid>(type: "TEXT", nullable: false)
+                    UserId = table.Column<Guid>(type: "TEXT", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -239,10 +238,10 @@ namespace TripPlanner.Adapters.Persistence.Ef.Migrations
                         principalColumn: "DestinationId",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
-                        name: "FK_DestinationVotes_Destinations_DestinationId1",
-                        column: x => x.DestinationId1,
-                        principalTable: "Destinations",
-                        principalColumn: "DestinationId",
+                        name: "FK_DestinationVotes_TripParticipants_ParticipantId",
+                        column: x => x.ParticipantId,
+                        principalTable: "TripParticipants",
+                        principalColumn: "ParticipantId",
                         onDelete: ReferentialAction.Cascade);
                 });
 
@@ -258,19 +257,14 @@ namespace TripPlanner.Adapters.Persistence.Ef.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_DateVotes_DateOptionId_UserId",
+                name: "IX_DateVotes_ParticipantId",
                 table: "DateVotes",
-                columns: new[] { "DateOptionId", "UserId" });
+                column: "ParticipantId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_DestinationImages_DestinationId",
                 table: "DestinationImages",
                 column: "DestinationId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_DestinationImages_DestinationId1",
-                table: "DestinationImages",
-                column: "DestinationId1");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Destinations_TripId",
@@ -284,14 +278,9 @@ namespace TripPlanner.Adapters.Persistence.Ef.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_DestinationVotes_DestinationId_UserId",
+                name: "IX_DestinationVotes_ParticipantId",
                 table: "DestinationVotes",
-                columns: new[] { "DestinationId", "UserId" });
-
-            migrationBuilder.CreateIndex(
-                name: "IX_DestinationVotes_DestinationId1",
-                table: "DestinationVotes",
-                column: "DestinationId1");
+                column: "ParticipantId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_PlaceholderClaims_CodeHash",
@@ -377,19 +366,19 @@ namespace TripPlanner.Adapters.Persistence.Ef.Migrations
                 name: "TripInvites");
 
             migrationBuilder.DropTable(
-                name: "TripParticipants");
-
-            migrationBuilder.DropTable(
                 name: "DateOptions");
 
             migrationBuilder.DropTable(
                 name: "Destinations");
 
             migrationBuilder.DropTable(
-                name: "Users");
+                name: "TripParticipants");
 
             migrationBuilder.DropTable(
                 name: "Trips");
+
+            migrationBuilder.DropTable(
+                name: "Users");
         }
     }
 }

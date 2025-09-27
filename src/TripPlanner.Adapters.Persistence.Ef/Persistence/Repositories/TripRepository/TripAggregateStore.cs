@@ -53,6 +53,11 @@ internal sealed class TripAggregateStore
 
         _db.Destinations.RemoveRange(existing);
 
+        // Build a map of UserId -> ParticipantId for this trip (only claimed participants)
+        var participantMap = await _db.Participants
+            .Where(p => p.TripId == trip.Id.Value && p.UserId != null)
+            .ToDictionaryAsync(p => p.UserId!.Value, p => p.ParticipantId, ct);
+
         var newRecs = trip.DestinationProposals.Select(p => new DestinationRecord
         {
             DestinationId = p.Id.Value,
@@ -60,7 +65,10 @@ internal sealed class TripAggregateStore
             Title = p.Title,
             Description = p.Description,
             Images = p.ImageUrls.Select(u => new DestinationImageRecord { Url = u }).ToList(),
-            Votes = p.VotesBy.Select(v => new DestinationVoteRecord { UserId = v.Value }).ToList()
+            Votes = p.VotesBy
+                .Where(v => participantMap.ContainsKey(v.Value))
+                .Select(v => new DestinationVoteRecord { ParticipantId = participantMap[v.Value], UserId = v.Value })
+                .ToList()
         });
 
         await _db.Destinations.AddRangeAsync(newRecs, ct);
