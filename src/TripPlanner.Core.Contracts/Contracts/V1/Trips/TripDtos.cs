@@ -6,8 +6,9 @@ public sealed record TripSummaryDto(
     string TripId,
     string Name,
     string OrganizerId,
-    IReadOnlyList<string> Participants,
-    IReadOnlyList<DateOptionDto> DateOptions);
+    string Description,
+    string CreatedAt,
+    IReadOnlyList<string> Participants);
 
 public sealed record DateOptionDto(string DateOptionId, string Date, int VotesCount);
 

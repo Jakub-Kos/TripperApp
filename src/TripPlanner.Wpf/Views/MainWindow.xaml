@@ -21,10 +21,9 @@
       <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
         <TextBlock Text="Name:" VerticalAlignment="Center" Margin="0,0,6,0"/>
         <TextBox Width="240" Text="{Binding NewTripName, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,12,0"/>
-        <TextBlock Text="OrganizerId:" VerticalAlignment="Center" Margin="0,0,6,0"/>
-        <TextBox Width="320" Text="{Binding OrganizerId, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,12,0"/>
         <Button Content="Create Trip" Command="{Binding CreateTripCommand}" />
         <Button Content="Refresh" Command="{Binding RefreshCommand}" Margin="8,0,0,0"/>
+        <CheckBox Content="Include finished trips" IsChecked="{Binding IncludeFinished}" Margin="12,0,0,0" VerticalAlignment="Center"/>
         <TextBlock Text="{Binding Status}" Margin="12,0,0,0" VerticalAlignment="Center" Foreground="DarkSlateGray"/>
       </StackPanel>
 
@@ -48,9 +47,9 @@
         <TabControl Grid.Column="1"
                     SelectedIndex="{Binding SelectedSectionIndex}">
 
-          <TabItem Header="Overview &amp; Date">
+          <TabItem Header="Overview">
             <StackPanel>
-              <TextBlock Text="Trip Summary" FontWeight="Bold" FontSize="16"/>
+              <TextBlock Text="Trip Overview" FontWeight="Bold" FontSize="16"/>
               <TextBlock Text="{Binding SelectedSummary.Name}" FontSize="14" Margin="0,2,0,12"/>
 
               <TextBlock Text="Participants" FontWeight="SemiBold"/>
@@ -62,42 +61,12 @@
 
               <Separator Margin="0,8,0,8"/>
 
-              <TextBlock Text="Date Options" FontWeight="SemiBold"/>
-              <DataGrid ItemsSource="{Binding SelectedSummary.DateOptions}"
-                        AutoGenerateColumns="False" IsReadOnly="True"
-                        Height="160" Margin="0,4,0,4"
-                        SelectedValuePath="DateOptionId"
-                        SelectedValue="{Binding SelectedDateOptionId}">
-                <DataGrid.Columns>
-                  <DataGridTextColumn Header="Id" Binding="{Binding DateOptionId}" Width="2*"/>
-                  <DataGridTextColumn Header="Date" Binding="{Binding Date}" Width="*"/>
-                  <DataGridTextColumn Header="Votes" Binding="{Binding VotesCount}" Width="Auto"/>
-                </DataGrid.Columns>
-              </DataGrid>
+              <TextBlock Text="Description" FontWeight="SemiBold"/>
+              <TextBox Text="{Binding DescriptionMarkdown, UpdateSourceTrigger=PropertyChanged}"
+                       AcceptsReturn="True" TextWrapping="Wrap" Height="140"/>
 
-              <!-- Registered OR anonymous -->
-              <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                <TextBlock Text="UserId (GUID):" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                <TextBox Width="280"
-                         Text="{Binding NewParticipantUserIdText, UpdateSourceTrigger=PropertyChanged}"
-                         Margin="0,0,12,0"/>
-                <TextBlock Text="or Name:" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                <TextBox Width="200"
-                         Text="{Binding NewParticipantDisplayName, UpdateSourceTrigger=PropertyChanged}" />
-                <Button Content="Add" Command="{Binding AddParticipantCommand}" Margin="12,0,0,0"/>
-              </StackPanel>
-
-              <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                <TextBlock Text="Propose date:" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                <DatePicker SelectedDate="{Binding NewDate, Mode=TwoWay}" Margin="0,0,8,0"/>
-                <Button Content="Propose" Command="{Binding ProposeDateCommand}"/>
-              </StackPanel>
-
-              <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                <TextBlock Text="Vote as user:" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                <TextBox Width="320" Text="{Binding VoteUserId, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,0"/>
-                <Button Content="Vote on selected date" Command="{Binding CastVoteCommand}"/>
-              </StackPanel>
+              <CheckBox Content="Is finished" IsChecked="{Binding SelectedTripIsFinished, Mode=TwoWay}"
+                        Margin="0,8,0,0"/>
             </StackPanel>
           </TabItem>
 

@@ -13,12 +13,8 @@ public static class TripMapping
             t.Id.Value.ToString("D"),
             t.Name,
             t.OrganizerId.Value.ToString("D"),
-            t.Participants.Select(p => p.Value.ToString("D")).ToList(),
-            t.DateOptions
-                .Select(o => new DateOptionDto(
-                    o.Id.Value.ToString("D"),
-                    o.Date.ToString("yyyy-MM-dd"),
-                    o.Votes.Count))
-                .ToList()
+            "",
+            "",
+            t.Participants.Select(p => p.Value.ToString("D")).ToList()
         );
 }

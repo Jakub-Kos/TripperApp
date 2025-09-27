@@ -143,6 +143,26 @@ public sealed class TripPlannerClient(HttpClient http) : ITripPlannerClient
         return true;
     }
 
+    public async Task<string?> GetTripDescriptionAsync(string tripId, CancellationToken ct = default)
+    {
+        var res = await http.GetAsync($"/api/v1/trips/{tripId}/description", ct);
+        if (res.StatusCode == HttpStatusCode.NotFound) return null;
+        res.EnsureSuccessStatusCode();
+        var obj = await res.Content.ReadFromJsonAsync<Dictionary<string, string>>(cancellationToken: ct);
+        if (obj != null && obj.TryGetValue("description", out var desc)) return desc;
+        return string.Empty;
+    }
+
+    public async Task<(bool ok, bool forbidden)> SetTripDescriptionAsync(string tripId, string description, CancellationToken ct = default)
+    {
+        using var res = await http.PatchAsJsonAsync($"/api/v1/trips/{tripId}/description", new { description }, ct);
+        if (res.StatusCode == HttpStatusCode.NoContent) return (true, false);
+        if (res.StatusCode == HttpStatusCode.NotFound) return (false, false);
+        if (res.StatusCode == HttpStatusCode.Forbidden) return (false, true);
+        await ThrowIfError(res, "Failed to set description.", ct);
+        return (false, false);
+    }
+
     private static async Task ThrowIfError(HttpResponseMessage res, string fallbackMessage, CancellationToken ct)
     {
         ErrorResponse? err = null;

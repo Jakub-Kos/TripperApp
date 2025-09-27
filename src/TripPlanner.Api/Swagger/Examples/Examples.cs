@@ -23,8 +23,9 @@ public sealed class TripSummaryDtoExample : IExamplesProvider<TripSummaryDto>
             "8c8f2d3b-2b60-4d96-9c0d-9b0e7a1a1111",
             "Snezka Hike",
             "00000000-0000-0000-0000-000000000001",
-            new[] { "00000000-0000-0000-0000-000000000002" },
-            new[] { new DateOptionDto("2b8f4a2e-8c3a-4f3e-8f1d-1c2b3a4d5555", "2025-10-11", 1) }
+            "A beautiful hike to Snezka. Bring warm clothes.",
+            "2025-09-27T18:10:00.0000000+00:00",
+            new[] { "00000000-0000-0000-0000-000000000002" }
         );
 }
 

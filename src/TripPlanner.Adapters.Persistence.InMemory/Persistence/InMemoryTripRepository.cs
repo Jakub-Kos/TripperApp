@@ -141,6 +141,17 @@ public sealed class InMemoryTripRepository : ITripRepository, IUnitOfWork
     
     public Task<TripSummaryDto?> GetSummaryAsync(TripId id, CancellationToken ct)
     {
-        throw new NotImplementedException();
+        if (!_store.TryGetValue(id, out var trip))
+            return Task.FromResult<TripSummaryDto?>(null);
+
+        var dto = new TripSummaryDto(
+            trip.Id.Value.ToString("D"),
+            trip.Name,
+            trip.OrganizerId.Value.ToString("D"),
+            "",
+            "",
+            trip.Participants.Select(p => p.Value.ToString("D")).ToList()
+        );
+        return Task.FromResult<TripSummaryDto?>(dto);
     }
 }

@@ -61,22 +61,13 @@ internal sealed class TripQueries
             .Select(p => p.ParticipantId.ToString())
             .ToListAsync(ct);
 
-        var dateOptions = await _db.DateOptions
-            .AsNoTracking()
-            .Where(o => o.TripId == id.Value)
-            .Select(o => new DateOptionDto(
-                o.DateOptionId.ToString(),
-                o.DateIso,
-                _db.DateVotes.Count(v => v.DateOptionId == o.DateOptionId)
-            ))
-            .ToListAsync(ct);
-
         return new TripSummaryDto(
             trip.TripId.ToString(),
             trip.Name,
             trip.OrganizerId.ToString(),
-            participants,
-            dateOptions
+            trip.DescriptionMarkdown,
+            trip.CreatedAt.ToString("O", CultureInfo.InvariantCulture),
+            participants
         );
     }
 }

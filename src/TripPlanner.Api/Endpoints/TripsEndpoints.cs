@@ -49,6 +49,42 @@ public static class TripsEndpoints
             .Produces<TripSummaryDto>(StatusCodes.Status200OK)
             .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
 
+        // Description endpoints
+        v1.MapGet("/trips/{tripId:guid}/description",
+                async (Guid tripId, AppDbContext db, CancellationToken ct) =>
+                {
+                    var trip = await db.Trips.AsNoTracking().FirstOrDefaultAsync(t => t.TripId == tripId, ct);
+                    if (trip is null) return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip not found"));
+                    return Results.Ok(new { description = trip.DescriptionMarkdown });
+                })
+            .WithTags("Trips")
+            .WithSummary("Get trip description")
+            .WithDescription("Returns the Markdown description for the trip.")
+            .Produces(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+
+        v1.MapPatch("/trips/{tripId:guid}/description",
+                async (Guid tripId, AppDbContext db, System.Security.Claims.ClaimsPrincipal user, UpdateTripDescriptionRequest req, CancellationToken ct) =>
+                {
+                    var sub = user.FindFirst("sub")?.Value ?? user.FindFirst("nameid")?.Value;
+                    if (!Guid.TryParse(sub, out var me)) return Results.Unauthorized();
+
+                    var trip = await db.Trips.FirstOrDefaultAsync(t => t.TripId == tripId, ct);
+                    if (trip is null) return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip not found"));
+                    if (trip.OrganizerId != me) return Results.Forbid();
+
+                    trip.DescriptionMarkdown = req.Description ?? string.Empty;
+                    await db.SaveChangesAsync(ct);
+                    return Results.NoContent();
+                })
+            .WithTags("Trips")
+            .WithSummary("Set trip description")
+            .WithDescription("Organizer can set or update the Markdown description of the trip.")
+            .Accepts<UpdateTripDescriptionRequest>("application/json")
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status403Forbidden);
+
         v1.MapGet("/my/trips",
                 async (bool? includeFinished, AppDbContext db, System.Security.Claims.ClaimsPrincipal user, CancellationToken ct) =>
                 {
@@ -133,4 +169,6 @@ public static class TripsEndpoints
         
         return v1;
     }
+
+    public sealed record UpdateTripDescriptionRequest(string? Description);
 }

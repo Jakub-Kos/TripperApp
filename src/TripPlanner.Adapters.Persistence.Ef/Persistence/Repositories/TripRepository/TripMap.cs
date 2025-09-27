@@ -50,6 +50,8 @@ internal static class TripMap
             TripId = trip.Id.Value,
             Name = trip.Name,
             OrganizerId = trip.OrganizerId.Value,
+            CreatedAt = DateTimeOffset.UtcNow,
+            DescriptionMarkdown = "",
 
             // IMPORTANT: The aggregate's Participants contain participant IDs now.
             // We persist them as ParticipantRecord with UserId = null (placeholder by default).

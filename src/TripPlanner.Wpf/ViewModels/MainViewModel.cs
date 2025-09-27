@@ -20,7 +20,6 @@ public partial class MainViewModel : ObservableObject
 
     // Create trip
     [ObservableProperty] private string _newTripName = "";
-    [ObservableProperty] private string _organizerId = "00000000-0000-0000-0000-000000000001";
 
     // Selection & summary
     public ObservableCollection<TripDto> Trips { get; } = new();
@@ -54,6 +53,10 @@ public partial class MainViewModel : ObservableObject
     }
 
     public DestinationsViewModel DestinationsVm { get; }
+
+    // Overview panel state
+    [ObservableProperty] private string _descriptionMarkdown = "";
+    [ObservableProperty] private bool _selectedTripIsFinished;
 
     public MainViewModel(ITripPlannerClient client, DestinationsViewModel destinationsVm)
     {
@@ -145,7 +148,7 @@ public partial class MainViewModel : ObservableObject
         await GuardAsync(async () =>
         {
             SelectedSummary = await _client.GetTripByIdAsync(tripId);
-            SelectedDateOptionId = SelectedSummary?.DateOptions.FirstOrDefault()?.DateOptionId;
+            // Date options are no longer part of TripSummary; leave SelectedDateOptionId unchanged.
         });
     }
 

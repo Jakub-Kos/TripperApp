@@ -29,4 +29,8 @@ public interface ITripPlannerClient
 
     /// <summary>Returns true if accepted (204), false on 404.</summary>
     Task<bool> VoteDestinationAsync(string tripId, string destinationId, VoteDestinationRequest request, CancellationToken ct = default);
+
+    // Description APIs
+    Task<string?> GetTripDescriptionAsync(string tripId, CancellationToken ct = default);
+    Task<(bool ok, bool forbidden)> SetTripDescriptionAsync(string tripId, string description, CancellationToken ct = default);
 }
