@@ -44,7 +44,7 @@ public static class DateEndpoints
 
                     return Results.NoContent();
                 })
-            .WithTags("Trips")
+            .WithTags("Dates")
             .WithSummary("Vote self for date option")
             .WithDescription("Current user votes using their participant identity.")
             .Accepts<DateSelfVoteRequest>("application/json")
@@ -77,7 +77,7 @@ public static class DateEndpoints
 
                     return Results.NoContent();
                 })
-            .WithTags("Trips")
+            .WithTags("Dates")
             .WithSummary("Proxy vote for date option")
             .WithDescription("Cast a vote on behalf of a placeholder participant.")
             .Accepts<DateProxyVoteRequest>("application/json")
@@ -95,7 +95,7 @@ public static class DateEndpoints
                         : Results.Created($"/api/v1/trips/{tripId}", new { dateOptionId = id.Value.Value.ToString("D") });
                 })
             .AddEndpointFilter(new ValidationFilter<ProposeDateRequest>())
-            .WithTags("Trips")
+            .WithTags("Dates")
             .WithName("ProposeDateOption")
             .WithSummary("Propose date option")
             .WithDescription("Proposes a date (YYYY-MM-DD) for the trip.")

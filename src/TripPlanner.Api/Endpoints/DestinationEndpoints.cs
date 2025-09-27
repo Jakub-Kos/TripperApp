@@ -27,7 +27,7 @@ public static class DestinationEndpoints
 
                     return Results.NoContent();
                 })
-            .WithTags("Trips")
+            .WithTags("Destinations")
             .WithSummary("Vote self for destination")
             .WithDescription("Current user votes using their participant identity.")
             .Produces(StatusCodes.Status204NoContent)
@@ -56,7 +56,7 @@ public static class DestinationEndpoints
 
                     return Results.NoContent();
                 })
-            .WithTags("Trips")
+            .WithTags("Destinations")
             .WithSummary("Proxy vote for destination")
             .WithDescription("Cast a vote on behalf of a placeholder participant.")
             .Accepts<DestinationProxyVoteRequest>("application/json")
@@ -72,7 +72,7 @@ public static class DestinationEndpoints
                         ? Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip not found"))
                         : Results.Ok(list);
                 })
-            .WithTags("Trips")
+            .WithTags("Destinations")
             .WithName("ListDestinations")
             .WithSummary("List destination proposals")
             .WithDescription("Returns all destination proposals for the trip.")
@@ -89,7 +89,7 @@ public static class DestinationEndpoints
                             new { destinationId = id.Value.Value.ToString("D") });
                 })
             .AddEndpointFilter(new ValidationFilter<ProposeDestinationRequest>())
-            .WithTags("Trips")
+            .WithTags("Destinations")
             .WithName("ProposeDestination")
             .WithSummary("Propose destination")
             .WithDescription("Proposes a destination with title, optional description, and image URLs.")

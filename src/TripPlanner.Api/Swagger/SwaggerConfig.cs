@@ -44,6 +44,9 @@ public static class SwaggerConfig
             c.MapType<DateOnly>(() => new OpenApiSchema { Type = "string", Format = "date" });
             c.MapType<TimeOnly>(() => new OpenApiSchema { Type = "string", Format = "time" });
 
+            // Show nicer tag grouping in Swagger by defining tag descriptions and order
+            c.DocumentFilter<TagDescriptionsDocumentFilter>();
+
             // Enable example providers
             c.ExampleFilters();
         });

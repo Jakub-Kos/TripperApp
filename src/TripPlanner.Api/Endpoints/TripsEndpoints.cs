@@ -55,9 +55,11 @@ public static class TripsEndpoints
                     var sub = user.FindFirst("sub")?.Value ?? user.FindFirst("nameid")?.Value;
                     if (!Guid.TryParse(sub, out var me)) return Results.Unauthorized();
 
-                    var query = db.Trips
-                        .AsNoTracking()
-                        .Where(t => t.OrganizerId == me || t.Participants.Any(p => p.UserId == me));
+                    // Build as union to avoid potential translation quirks with OR + Any()
+                    var owned = db.Trips.AsNoTracking().Where(t => t.OrganizerId == me);
+                    var member = db.Trips.AsNoTracking().Where(t => t.Participants.Any(p => p.UserId == me));
+
+                    var query = owned.Union(member);
 
                     if (includeFinished != true)
                         query = query.Where(t => !t.IsFinished);
@@ -65,9 +67,9 @@ public static class TripsEndpoints
                     var trips = await query
                         .OrderBy(t => t.Name)
                         .Select(t => new TripDto(
-                            t.TripId.ToString(),
+                            t.TripId.ToString("D"),
                             t.Name,
-                            t.OrganizerId.ToString()
+                            t.OrganizerId.ToString("D")
                         ))
                         .ToListAsync(ct);
 

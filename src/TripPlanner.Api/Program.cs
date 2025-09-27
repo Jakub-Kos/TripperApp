@@ -133,7 +133,7 @@ app.MapPost("/auth/register", async (RegisterRequest req, IUserRepository users,
     var hash = BCrypt.Net.BCrypt.HashPassword(req.Password);
     var userId = await users.Add(req.Email, req.DisplayName, hash, ct);
     return Results.Created($"/users/{userId}", new { userId, displayName = req.DisplayName, email = req.Email });
-}).AllowAnonymous();
+}).AllowAnonymous().WithTags("Auth");
 
 app.MapPost("/auth/login", async (LoginRequest req, IUserRepository users, IJwtService jwt, JwtOptions jwtOptions, IConfiguration cfg, IClock clock, CancellationToken ct) =>
 {
@@ -150,7 +150,7 @@ app.MapPost("/auth/login", async (LoginRequest req, IUserRepository users, IJwtS
     await users.AddRefreshToken(user.UserId, refreshHash, clock.UtcNow.AddDays(jwtOptions.RefreshTokenDays), ct);
 
     return Results.Json(new LoginResponse(access, rawRefresh, (int)TimeSpan.FromMinutes(jwtOptions.AccessTokenMinutes).TotalSeconds));
-}).AllowAnonymous();
+}).AllowAnonymous().WithTags("Auth");
 
 app.MapPost("/auth/refresh", async (RefreshRequest req, IUserRepository users, IJwtService jwt, JwtOptions jwtOpts, IConfiguration cfg, IClock clock, CancellationToken ct) =>
 {
@@ -174,7 +174,7 @@ app.MapPost("/auth/refresh", async (RefreshRequest req, IUserRepository users, I
         access,
         newRefreshRaw,
         (int)TimeSpan.FromMinutes(jwtOpts.AccessTokenMinutes).TotalSeconds));
-}).AllowAnonymous();
+}).AllowAnonymous().WithTags("Auth");
 
 app.MapPost("/auth/logout", async (RefreshRequest req, IUserRepository users, IConfiguration cfg, IClock clock, CancellationToken ct) =>
 {
@@ -182,7 +182,7 @@ app.MapPost("/auth/logout", async (RefreshRequest req, IUserRepository users, IC
     var presentedHash = TokenHasher.Hash(req.RefreshToken, pepper);
     await users.RevokeRefreshToken(presentedHash, clock.UtcNow, ct);
     return Results.NoContent();
-}).AllowAnonymous();
+}).AllowAnonymous().WithTags("Auth");
 
 // ---- PROTECT existing API ----
 v1.RequireAuthorization(); // everything under /api/v1 now requires a valid JWT

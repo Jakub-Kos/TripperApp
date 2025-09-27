@@ -302,4 +302,118 @@ public class SmokeApiTests : IClassFixture<WebApplicationFactory<Program>>
             if (accessB is not null) await DeleteUserMeAsync(client, accessB);
         }
     }
+
+    [Fact]
+    public async Task Trip_Status_and_List_Filter()
+    {
+        var client = _factory.CreateClient();
+        var emailA = NewEmail("alice");
+        await RegisterAsync(client, emailA, "1", "Alice A");
+        var (accessA, _) = await LoginAsync(client, emailA, "1");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessA);
+
+        string? tripId = null;
+        try
+        {
+            var createTrip = await client.PostAsJsonAsync("/api/v1/trips", new { name = "Finished Trip" });
+            createTrip.EnsureSuccessStatusCode();
+            var created = await createTrip.Content.ReadFromJsonAsync<JsonElement>();
+            tripId = created.GetProperty("tripId").GetString()!;
+
+            // Initially should be listed (unfinished)
+            var list1 = await client.GetAsync("/api/v1/my/trips");
+            list1.EnsureSuccessStatusCode();
+            var arr1 = await list1.Content.ReadFromJsonAsync<JsonElement>();
+            arr1.EnumerateArray().Any(e => e.GetProperty("tripId").GetString() == tripId).Should().BeTrue();
+
+            // Mark finished
+            var patch = await client.PatchAsJsonAsync($"/api/v1/trips/{tripId}/status", new { isFinished = true });
+            patch.EnsureSuccessStatusCode();
+
+            // Now default list (includeFinished=false) should not include
+            var list2 = await client.GetAsync("/api/v1/my/trips");
+            list2.EnsureSuccessStatusCode();
+            var arr2 = await list2.Content.ReadFromJsonAsync<JsonElement>();
+            arr2.EnumerateArray().Any(e => e.GetProperty("tripId").GetString() == tripId).Should().BeFalse();
+
+            // But includeFinished=true should include
+            var list3 = await client.GetAsync("/api/v1/my/trips?includeFinished=true");
+            list3.EnsureSuccessStatusCode();
+            var arr3 = await list3.Content.ReadFromJsonAsync<JsonElement>();
+            arr3.EnumerateArray().Any(e => e.GetProperty("tripId").GetString() == tripId).Should().BeTrue();
+        }
+        finally
+        {
+            if (tripId is not null) await DeleteTripAsync(client, accessA, tripId);
+            await DeleteUserMeAsync(client, accessA);
+        }
+    }
+
+    [Fact]
+    public async Task Auth_Refresh_and_Logout()
+    {
+        var client = _factory.CreateClient();
+        var email = NewEmail("auth");
+        await RegisterAsync(client, email, "1", "Auth User");
+        var (access, refresh) = await LoginAsync(client, email, "1");
+
+        // Refresh
+        var refreshResp = await client.PostAsJsonAsync("/auth/refresh", new { refreshToken = refresh });
+        refreshResp.EnsureSuccessStatusCode();
+        var refreshJson = await refreshResp.Content.ReadFromJsonAsync<JsonElement>();
+        var newAccess = refreshJson.GetProperty("accessToken").GetString()!;
+        var newRefresh = refreshJson.GetProperty("refreshToken").GetString()!;
+
+        // Logout (revoke refresh)
+        var logout = await client.PostAsJsonAsync("/auth/logout", new { refreshToken = newRefresh });
+        logout.EnsureSuccessStatusCode();
+
+        // Refresh again should fail
+        var refreshAgain = await client.PostAsJsonAsync("/auth/refresh", new { refreshToken = newRefresh });
+        refreshAgain.StatusCode.Should().Be(System.Net.HttpStatusCode.Unauthorized);
+
+        // Cleanup user using access (either original or new)
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", newAccess);
+        await DeleteUserMeAsync(client, newAccess);
+    }
+
+    [Fact]
+    public async Task Date_ProxyVote_for_Placeholder()
+    {
+        var client = _factory.CreateClient();
+        var emailA = NewEmail("alice");
+        await RegisterAsync(client, emailA, "1", "Alice A");
+        var (accessA, _) = await LoginAsync(client, emailA, "1");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessA);
+
+        string? tripId = null;
+        try
+        {
+            // Create trip
+            var createTrip = await client.PostAsJsonAsync("/api/v1/trips", new { name = "Date Proxy Trip" });
+            createTrip.EnsureSuccessStatusCode();
+            var createdTrip = await createTrip.Content.ReadFromJsonAsync<JsonElement>();
+            tripId = createdTrip.GetProperty("tripId").GetString()!;
+
+            // Propose date
+            var dateIso = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7)).ToString("yyyy-MM-dd");
+            var proposeDate = await client.PostAsJsonAsync($"/api/v1/trips/{tripId}/date-options", new { date = dateIso });
+            proposeDate.EnsureSuccessStatusCode();
+            var dateOptionId = (await proposeDate.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("dateOptionId").GetString()!;
+
+            // Create placeholder
+            var createPh = await client.PostAsJsonAsync($"/api/v1/trips/{tripId}/placeholders", new { displayName = "Guest P" });
+            createPh.EnsureSuccessStatusCode();
+            var placeholderId = (await createPh.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("participantId").GetString()!;
+
+            // Proxy vote for date option
+            var proxyVote = await client.PostAsJsonAsync($"/api/v1/trips/{tripId}/date-votes/proxy", new { dateOptionId, participantId = placeholderId });
+            proxyVote.EnsureSuccessStatusCode();
+        }
+        finally
+        {
+            if (tripId is not null) await DeleteTripAsync(client, accessA, tripId);
+            await DeleteUserMeAsync(client, accessA);
+        }
+    }
 }
