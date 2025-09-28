@@ -9,7 +9,7 @@ public record TripOverviewDto(
     string Name,
     string DescriptionMarkdown,
     DateTimeOffset CreatedAt,
-    ParticipantDto[] Participants
+    ParticipantInfoDto[] Participants
 );
 
 public record GetTripOverviewResponse(TripOverviewDto Trip);

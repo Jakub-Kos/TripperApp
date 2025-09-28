@@ -94,7 +94,7 @@ public interface ITripPlannerClient
     Task<bool> DeleteDayRouteAsync(string tripId, string dayId, int routeId, CancellationToken ct = default);
 
     // Participants APIs
-    Task<IReadOnlyList<ParticipantDto>?> ListParticipantsAsync(string tripId, CancellationToken ct = default);
+    Task<IReadOnlyList<ParticipantInfoDto>?> ListParticipantsAsync(string tripId, CancellationToken ct = default);
     Task<string?> CreatePlaceholderAsync(string tripId, string displayName, CancellationToken ct = default);
     Task<bool> UpdateParticipantDisplayNameAsync(string tripId, string participantId, string displayName, CancellationToken ct = default);
     Task<bool> DeleteParticipantAsync(string tripId, string participantId, CancellationToken ct = default);

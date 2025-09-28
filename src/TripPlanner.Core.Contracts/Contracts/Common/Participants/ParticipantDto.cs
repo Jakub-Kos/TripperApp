@@ -1,14 +1,6 @@
 ﻿namespace TripPlanner.Core.Contracts.Contracts.Common.Participants;
 
-// Legacy DTO retained for compatibility in clients; server may return a different shape.
-public record ParticipantDto(
-    string ParticipantId,
-    string DisplayName,
-    bool IsAnonymous,
-    Guid UserId
-);
-
-// New richer DTO for participant info
+// Canonical DTO for participant info
 public sealed class ParticipantInfoDto
 {
     public string ParticipantId { get; init; } = default!;

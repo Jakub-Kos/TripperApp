@@ -542,12 +542,12 @@ public sealed class TripPlannerClient(HttpClient http) : ITripPlannerClient
     }
 
     // Participants APIs
-    public async Task<IReadOnlyList<ParticipantDto>?> ListParticipantsAsync(string tripId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<ParticipantInfoDto>?> ListParticipantsAsync(string tripId, CancellationToken ct = default)
     {
         using var res = await http.GetAsync($"/api/v1/trips/{tripId}/participants", ct);
         if (res.StatusCode == HttpStatusCode.NotFound) return null;
         res.EnsureSuccessStatusCode();
-        return await res.Content.ReadFromJsonAsync<IReadOnlyList<ParticipantDto>>(cancellationToken: ct);
+        return await res.Content.ReadFromJsonAsync<IReadOnlyList<ParticipantInfoDto>>(cancellationToken: ct);
     }
 
     public async Task<string?> CreatePlaceholderAsync(string tripId, string displayName, CancellationToken ct = default)
