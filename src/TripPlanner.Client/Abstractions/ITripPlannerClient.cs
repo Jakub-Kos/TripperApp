@@ -31,6 +31,9 @@ public interface ITripPlannerClient
 
     // New API: update finished status
     Task<bool> UpdateTripStatusAsync(string tripId, bool isFinished, CancellationToken ct = default);
+
+    // Rename trip
+    Task<bool> RenameTripAsync(string tripId, string name, CancellationToken ct = default);
     
     Task<IReadOnlyList<DestinationProposalDto>?> GetDestinationsAsync(string tripId, CancellationToken ct = default);
 

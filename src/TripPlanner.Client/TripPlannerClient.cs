@@ -94,6 +94,15 @@ public sealed class TripPlannerClient(HttpClient http) : ITripPlannerClient
         return false;
     }
 
+    public async Task<bool> RenameTripAsync(string tripId, string name, CancellationToken ct = default)
+    {
+        using var res = await http.PatchAsJsonAsync($"/api/v1/trips/{tripId}", new { name }, ct);
+        if (res.StatusCode == HttpStatusCode.NoContent) return true;
+        if (res.StatusCode == HttpStatusCode.NotFound) return false;
+        await ThrowIfError(res, "Failed to rename trip.", ct);
+        return false;
+    }
+
     // Dates APIs
     public async Task<bool> UnvoteOnDateAsync(string tripId, string dateIso, CancellationToken ct = default)
     {

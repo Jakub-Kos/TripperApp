@@ -81,10 +81,16 @@ public partial class OverviewViewModel : ObservableObject
 
             if (EditName != Name)
             {
-                // The API (as of now) doesn’t support renaming trips. Surface a gentle hint.
-                ReportStatus?.Invoke("Renaming trips isn’t supported yet. Name not changed.");
-                // If/when supported: await _client.RenameTripAsync(TripId, EditName);
-                // Name = EditName;
+                var ok = await _client.RenameTripAsync(TripId, EditName);
+                if (ok)
+                {
+                    Name = EditName;
+                    ReportStatus?.Invoke("Trip renamed.");
+                }
+                else
+                {
+                    ReportStatus?.Invoke("Trip not found. Rename failed.");
+                }
             }
         }
         catch (Exception ex)
