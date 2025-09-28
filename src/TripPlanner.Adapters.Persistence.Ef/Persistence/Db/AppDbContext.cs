@@ -13,6 +13,7 @@ public sealed class AppDbContext : DbContext
     public DbSet<DateOptionRecord> DateOptions => Set<DateOptionRecord>();
     public DbSet<DateVoteRecord> DateVotes => Set<DateVoteRecord>();
     public DbSet<TermProposalRecord> TermProposals => Set<TermProposalRecord>();
+    public DbSet<TermProposalVoteRecord> TermProposalVotes => Set<TermProposalVoteRecord>();
     public DbSet<DestinationRecord> Destinations => Set<DestinationRecord>();
     public DbSet<DestinationImageRecord> DestinationImages => Set<DestinationImageRecord>();
     public DbSet<DestinationVoteRecord> DestinationVotes => Set<DestinationVoteRecord>();
@@ -35,6 +36,7 @@ public sealed class AppDbContext : DbContext
         modelBuilder.Entity<DateOptionRecord>(ConfigureDateOption);
         modelBuilder.Entity<DateVoteRecord>(ConfigureDateVote);
         modelBuilder.Entity<TermProposalRecord>(ConfigureTermProposal);
+        modelBuilder.Entity<TermProposalVoteRecord>(ConfigureTermProposalVote);
 
         modelBuilder.Entity<DestinationRecord>(ConfigureDestination);
         modelBuilder.Entity<DestinationImageRecord>(ConfigureDestinationImage);
@@ -262,6 +264,8 @@ public sealed class AppDbContext : DbContext
         e.Property(x => x.TripId).IsRequired();
         e.Property(x => x.StartIso).IsRequired();
         e.Property(x => x.EndIso).IsRequired();
+        e.Property(x => x.CreatedByUserId).IsRequired();
+        e.Property(x => x.CreatedAt).IsRequired();
 
         e.HasIndex(x => new { x.TripId, x.StartIso, x.EndIso });
 
@@ -269,5 +273,19 @@ public sealed class AppDbContext : DbContext
             .WithMany(t => t.TermProposals)
             .HasForeignKey(x => x.TripId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        e.HasMany(x => x.Votes)
+            .WithOne(v => v.TermProposal)
+            .HasForeignKey(v => v.TermProposalId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+
+    private static void ConfigureTermProposalVote(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<TermProposalVoteRecord> e)
+    {
+        e.ToTable("TermProposalVotes");
+        e.HasKey(x => new { x.TermProposalId, x.ParticipantId });
+        e.Property(x => x.TermProposalId).IsRequired();
+        e.Property(x => x.ParticipantId).IsRequired();
+        e.HasIndex(x => x.ParticipantId);
     }
 }

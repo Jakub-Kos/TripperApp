@@ -11,5 +11,10 @@ public sealed class TermProposalRecord
     public string StartIso { get; set; } = null!;
     public string EndIso { get; set; } = null!;
 
+    // Who created the proposal and when
+    public Guid CreatedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+
     public TripRecord Trip { get; set; } = null!;
+    public List<TermProposalVoteRecord> Votes { get; set; } = new();
 }
