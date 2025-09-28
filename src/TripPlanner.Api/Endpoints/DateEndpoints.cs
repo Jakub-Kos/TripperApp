@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Mvc;
 using TripPlanner.Adapters.Persistence.Ef.Persistence.Db;
 using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Date;
 using TripPlanner.Api.Infrastructure;
@@ -139,6 +140,53 @@ public static class DateEndpoints
             .WithSummary("Deprecated: propose date option")
             .WithDescription("Deprecated. Use PUT /trips/{tripId}/date-range and POST /trips/{tripId}/date-votes with a date instead.")
             .Produces(StatusCodes.Status410Gone);
+
+        // DELETE self vote for a specific date
+        v1.MapDelete("/trips/{tripId:guid}/date-votes", async (Guid tripId, [FromBody] DateSelfVoteRequest req, AppDbContext db, System.Security.Claims.ClaimsPrincipal user, CancellationToken ct) =>
+            {
+                if (!DateOnly.TryParse(req.Date, out var date))
+                    return Results.BadRequest("Invalid date format. Use YYYY-MM-DD.");
+
+                var sub = user.FindFirst("sub")?.Value ?? user.FindFirst("nameid")?.Value;
+                if (!Guid.TryParse(sub, out var me)) return Results.Unauthorized();
+
+                var participantId = await db.Participants
+                    .Where(p => p.TripId == tripId && p.UserId == me)
+                    .Select(p => p.ParticipantId)
+                    .FirstOrDefaultAsync(ct);
+
+                if (participantId == Guid.Empty) return Results.Forbid();
+
+                var trip = await db.Trips.FirstOrDefaultAsync(t => t.TripId == tripId, ct);
+                if (trip is null) return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip not found"));
+
+                var dateIso = date.ToString("yyyy-MM-dd");
+                var opt = await db.DateOptions.FirstOrDefaultAsync(o => o.TripId == tripId && o.DateIso == dateIso, ct);
+                if (opt is null)
+                {
+                    // Nothing to delete
+                    return Results.NoContent();
+                }
+
+                var vote = await db.DateVotes.FirstOrDefaultAsync(v => v.DateOptionId == opt.DateOptionId && v.ParticipantId == participantId, ct);
+                if (vote is not null)
+                {
+                    db.DateVotes.Remove(vote);
+                    await db.SaveChangesAsync(ct);
+                }
+
+                return Results.NoContent();
+            })
+            .WithTags("Dates")
+            .WithSummary("Remove self vote for a specific date")
+            .WithDescription("Current user removes their vote for a specific date (YYYY-MM-DD). Idempotent: returns 204 even if not voted.")
+            .Accepts<DateSelfVoteRequest>("application/json")
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status403Forbidden)
+            .Produces(StatusCodes.Status401Unauthorized)
+            .Produces(StatusCodes.Status400BadRequest);
+        
         return v1;
     }
 }

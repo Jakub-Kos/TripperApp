@@ -418,4 +418,97 @@ public class SmokeApiTests : IClassFixture<WebApplicationFactory<Program>>
             await DeleteUserMeAsync(client, accessA);
         }
     }
+
+    [Fact]
+    public async Task Date_DeleteVote_Self()
+    {
+        var client = _factory.CreateClient();
+        var emailA = NewEmail("alice");
+        await RegisterAsync(client, emailA, "1", "Alice A");
+        var (accessA, _) = await LoginAsync(client, emailA, "1");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessA);
+
+        string? tripId = null;
+        try
+        {
+            // Create trip
+            var createTrip = await client.PostAsJsonAsync("/api/v1/trips", new { name = "Date Delete Vote Trip" });
+            createTrip.EnsureSuccessStatusCode();
+            var createdTrip = await createTrip.Content.ReadFromJsonAsync<JsonElement>();
+            tripId = createdTrip.GetProperty("tripId").GetString()!;
+
+            // Set date range and vote once
+            var startIso = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(2)).ToString("yyyy-MM-dd");
+            var dateIso = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(3)).ToString("yyyy-MM-dd");
+            var endIso = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(4)).ToString("yyyy-MM-dd");
+            (await client.PutAsJsonAsync($"/api/v1/trips/{tripId}/date-range", new { start = startIso, end = endIso })).EnsureSuccessStatusCode();
+            (await client.PostAsJsonAsync($"/api/v1/trips/{tripId}/date-votes", new { date = dateIso })).EnsureSuccessStatusCode();
+
+            // Delete vote (with body)
+            var delReq = new HttpRequestMessage(HttpMethod.Delete, $"/api/v1/trips/{tripId}/date-votes")
+            {
+                Content = JsonContent.Create(new { date = dateIso })
+            };
+            var del1 = await client.SendAsync(delReq);
+            del1.EnsureSuccessStatusCode();
+
+            // Idempotent delete
+            var delReq2 = new HttpRequestMessage(HttpMethod.Delete, $"/api/v1/trips/{tripId}/date-votes")
+            {
+                Content = JsonContent.Create(new { date = dateIso })
+            };
+            var del2 = await client.SendAsync(delReq2);
+            del2.EnsureSuccessStatusCode();
+        }
+        finally
+        {
+            if (tripId is not null) await DeleteTripAsync(client, accessA, tripId);
+            await DeleteUserMeAsync(client, accessA);
+        }
+    }
+
+    [Fact]
+    public async Task Term_Vote_and_Delete_Self()
+    {
+        var client = _factory.CreateClient();
+        var emailA = NewEmail("alice");
+        await RegisterAsync(client, emailA, "1", "Alice A");
+        var (accessA, _) = await LoginAsync(client, emailA, "1");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessA);
+
+        string? tripId = null;
+        try
+        {
+            // Create a trip
+            var createTrip = await client.PostAsJsonAsync("/api/v1/trips", new { name = "Term Vote Delete Trip" });
+            createTrip.EnsureSuccessStatusCode();
+            var createdTrip = await createTrip.Content.ReadFromJsonAsync<JsonElement>();
+            tripId = createdTrip.GetProperty("tripId").GetString()!;
+
+            var startIso = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(10)).ToString("yyyy-MM-dd");
+            var endIso = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(12)).ToString("yyyy-MM-dd");
+
+            var prop = await client.PostAsJsonAsync($"/api/v1/trips/{tripId}/term-proposals", new { start = startIso, end = endIso });
+            prop.EnsureSuccessStatusCode();
+            var propJson = await prop.Content.ReadFromJsonAsync<JsonElement>();
+            var termId = propJson.GetProperty("termProposalId").GetString()!;
+
+            // Vote
+            var vote = await client.PostAsync($"/api/v1/trips/{tripId}/term-proposals/{termId}/votes", null);
+            vote.EnsureSuccessStatusCode();
+
+            // Delete vote
+            var del = await client.DeleteAsync($"/api/v1/trips/{tripId}/term-proposals/{termId}/votes");
+            del.EnsureSuccessStatusCode();
+
+            // Idempotent
+            var delAgain = await client.DeleteAsync($"/api/v1/trips/{tripId}/term-proposals/{termId}/votes");
+            delAgain.EnsureSuccessStatusCode();
+        }
+        finally
+        {
+            if (tripId is not null) await DeleteTripAsync(client, accessA, tripId);
+            await DeleteUserMeAsync(client, accessA);
+        }
+    }
 }

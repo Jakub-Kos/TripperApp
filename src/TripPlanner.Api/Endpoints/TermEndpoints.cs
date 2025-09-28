@@ -89,6 +89,37 @@ public static class TermEndpoints
             .Produces(StatusCodes.Status403Forbidden)
             .Produces(StatusCodes.Status401Unauthorized);
 
+        // Remove a vote on a term proposal (self)
+        v1.MapDelete("/trips/{tripId:guid}/term-proposals/{termId:guid}/votes", async (Guid tripId, Guid termId, AppDbContext db, System.Security.Claims.ClaimsPrincipal user, CancellationToken ct) =>
+            {
+                var sub = user.FindFirst("sub")?.Value ?? user.FindFirst("nameid")?.Value;
+                if (!Guid.TryParse(sub, out var me)) return Results.Unauthorized();
+
+                var term = await db.TermProposals.FirstOrDefaultAsync(t => t.TermProposalId == termId && t.TripId == tripId, ct);
+                if (term is null) return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Term proposal not found"));
+
+                var participantId = await db.Participants
+                    .Where(p => p.TripId == tripId && p.UserId == me)
+                    .Select(p => p.ParticipantId)
+                    .FirstOrDefaultAsync(ct);
+                if (participantId == Guid.Empty) return Results.Forbid();
+
+                var vote = await db.TermProposalVotes.FirstOrDefaultAsync(v => v.TermProposalId == termId && v.ParticipantId == participantId, ct);
+                if (vote is not null)
+                {
+                    db.TermProposalVotes.Remove(vote);
+                    await db.SaveChangesAsync(ct);
+                }
+                return Results.NoContent();
+            })
+            .WithTags("Dates")
+            .WithSummary("Remove vote for a term proposal")
+            .WithDescription("Current user (participant) removes their vote for a specific term proposal. Idempotent: returns 204 even if no vote existed.")
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status403Forbidden)
+            .Produces(StatusCodes.Status401Unauthorized);
+
         // Delete a term proposal (creator or organizer)
         v1.MapDelete("/trips/{tripId:guid}/term-proposals/{termId:guid}", async (Guid tripId, Guid termId, AppDbContext db, System.Security.Claims.ClaimsPrincipal user, CancellationToken ct) =>
             {
