@@ -1,0 +1,96 @@
+﻿<UserControl x:Class="TripPlanner.Wpf.Views.ItineraryTab"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- VM tweak (small) to make UI dead-simple:
+       Add on ItineraryViewModel:
+         [ObservableProperty] private string _newDayDate;
+         [ObservableProperty] private string? _newDayTitle;
+         [RelayCommand] private async Task CreateDayAsync() => await CreateDayAsync(NewDayDate, NewDayTitle);
+       Also add:
+         [RelayCommand] private async Task DeleteRouteAsync(RouteRow route) { await _client.Itinerary.DeleteRouteAsync(TripId, SelectedDay!.DayId, route.RouteId); await ReloadDay(SelectedDay!); }
+  -->
+  <Grid Margin="8">
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="250"/>
+      <ColumnDefinition Width="*"/>
+    </Grid.ColumnDefinitions>
+    <!-- Days list & create -->
+    <StackPanel Margin="0,0,8,0">
+      <TextBlock Text="Days" FontWeight="SemiBold" Margin="0,0,0,6"/>
+      <ListBox ItemsSource="{Binding Days}" SelectedItem="{Binding SelectedDay}">
+        <ListBox.ItemTemplate>
+          <DataTemplate>
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="{Binding Date}" FontWeight="SemiBold"/>
+              <TextBlock Text=" — " />
+              <TextBlock Text="{Binding Title}" />
+            </StackPanel>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+
+      <Separator Margin="0,8,0,8"/>
+
+      <TextBlock Text="Add day" FontWeight="SemiBold" Margin="0,0,0,6"/>
+      <StackPanel Orientation="Vertical">
+        <TextBox Text="{Binding NewDayDate, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,6"/>
+        <TextBox Text="{Binding NewDayTitle, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,6"/>
+        <Button Content="Add" Command="{Binding CreateDayCommand}"/>
+      </StackPanel>
+    </StackPanel>
+
+    <!-- Selected day detail -->
+    <Grid DataContext="{Binding SelectedDay}">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="*"/>
+      </Grid.RowDefinitions>
+
+      <StackPanel Orientation="Horizontal">
+        <TextBox Width="120" Text="{Binding Date, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,0"/>
+        <TextBox Width="240" Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,0"/>
+        <Button Content="Save"
+                Command="{Binding DataContext.UpdateDayCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                CommandParameter="{Binding}"/>
+        <Button Content="Delete" Margin="8,0,0,0"
+                Command="{Binding DataContext.DeleteDayCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                CommandParameter="{Binding}"/>
+      </StackPanel>
+
+      <TextBox Grid.Row="1" Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}"
+               AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" MinHeight="80" />
+
+      <GroupBox Grid.Row="2" Header="Routes" Margin="0,8,0,0">
+        <DockPanel>
+          <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+            <Button Content="Upload route…" 
+                    Command="{Binding DataContext.UploadRouteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                    CommandParameter="{Binding}"/>
+          </StackPanel>
+
+          <ItemsControl ItemsSource="{Binding Routes}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <DockPanel Margin="0,0,0,6">
+                  <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                    <Button Content="Delete"
+                            Command="{Binding DataContext.DeleteRouteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                            CommandParameter="{Binding}"/>
+                  </StackPanel>
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{Binding FileName}" FontWeight="SemiBold"/>
+                    <TextBlock Text="  " />
+                    <TextBlock Text="{Binding MediaType}" Foreground="Gray"/>
+                    <TextBlock Text="  " />
+                    <TextBlock Text="{Binding SizeBytes}" Foreground="Gray"/>
+                  </StackPanel>
+                </DockPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </DockPanel>
+      </GroupBox>
+    </Grid>
+  </Grid>
+</UserControl>

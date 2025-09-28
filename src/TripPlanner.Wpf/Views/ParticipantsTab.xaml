@@ -1,0 +1,42 @@
+﻿<UserControl x:Class="TripPlanner.Wpf.Views.ParticipantsTab"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <DockPanel Margin="8">
+    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+      <TextBlock Text="New placeholder:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+      <TextBox Width="240" Text="{Binding NewPlaceholderName, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,0"/>
+      <Button Content="Add" Command="{Binding AddPlaceholderCommand}"/>
+      <Separator Margin="12,0"/>
+      <TextBlock Text="Invite code:" VerticalAlignment="Center" Margin="12,0,8,0"/>
+      <TextBox Width="180" Text="{Binding InviteCode}" Margin="0,0,8,0" IsReadOnly="True"/>
+      <Button Content="Create" Command="{Binding CreateInviteCodeCommand}" Margin="0,0,8,0"/>
+      <Button Content="Join trip" Command="{Binding JoinByCodeCommand}"/>
+      <Separator Margin="12,0"/>
+      <TextBlock Text="Claim code:" VerticalAlignment="Center" Margin="12,0,8,0"/>
+      <TextBox Width="140" Text="{Binding ClaimCode, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,0"/>
+      <Button Content="Claim placeholder" Command="{Binding ClaimPlaceholderCommand}"/>
+    </StackPanel>
+
+    <ListView ItemsSource="{Binding Items}">
+      <ListView.ItemTemplate>
+        <DataTemplate>
+          <DockPanel Margin="0,0,0,6">
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+              <Button Content="Rename" Margin="8,0,0,0"
+                      Command="{Binding DataContext.RenameCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                      CommandParameter="{Binding}"/>
+              <Button Content="Remove" Margin="8,0,0,0"
+                      Command="{Binding DataContext.RemoveCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                      CommandParameter="{Binding}"/>
+              <Button Content="Issue claim code" Margin="8,0,0,0"
+                      Command="{Binding DataContext.IssueClaimCodeCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                      CommandParameter="{Binding}"/>
+            </StackPanel>
+            <TextBox Width="260" Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}"/>
+            <TextBlock Text="{Binding ParticipantId}" Foreground="Gray" Margin="12,0,0,0" VerticalAlignment="Center"/>
+          </DockPanel>
+        </DataTemplate>
+      </ListView.ItemTemplate>
+    </ListView>
+  </DockPanel>
+</UserControl>

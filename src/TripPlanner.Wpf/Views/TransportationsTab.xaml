@@ -1,0 +1,48 @@
+﻿<UserControl x:Class="TripPlanner.Wpf.Views.TransportationsTab"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <DockPanel Margin="8">
+    <DockPanel.Resources>
+      <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+    </DockPanel.Resources>
+    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+      <TextBox Width="220" Text="{Binding NewTitle, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,0"/>
+      <TextBox Width="300" Text="{Binding NewDescription, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,0"/>
+      <Button Content="Add" Command="{Binding CreateCommand}"/>
+    </StackPanel>
+
+    <ItemsControl ItemsSource="{Binding Items}">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate>
+          <Border BorderBrush="#DDD" BorderThickness="1" Padding="8" Margin="0,0,0,8">
+            <DockPanel>
+              <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                <Button Content="Choose" Margin="8,0,0,0"
+                        Command="{Binding DataContext.ChooseCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                        CommandParameter="{Binding}"/>
+                <Button Content="Delete" Margin="8,0,0,0"
+                        Command="{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                        CommandParameter="{Binding}"/>
+                <Button Content="Upload route…" Margin="8,0,0,0"
+                        Command="{Binding DataContext.UploadRouteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                        CommandParameter="{Binding}"/>
+                <Button Content="Upload doc…" Margin="8,0,0,0"
+                        Command="{Binding DataContext.UploadDocumentCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                        CommandParameter="{Binding}"/>
+              </StackPanel>
+              <StackPanel>
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold"/>
+                  <TextBlock Text="  " />
+                  <TextBlock Text="Chosen" Foreground="SeaGreen"
+                             Visibility="{Binding IsChosen, Converter={StaticResource BoolToVis}}"/>
+                </StackPanel>
+                <TextBlock Text="{Binding Description}" TextWrapping="Wrap" Foreground="Gray"/>
+              </StackPanel>
+            </DockPanel>
+          </Border>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+  </DockPanel>
+</UserControl>

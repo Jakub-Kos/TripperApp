@@ -1,0 +1,94 @@
+﻿<UserControl x:Class="TripPlanner.Wpf.Views.GearTab"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- VM tweak (small, optional for full CRUD on assignments):
+       Add on GearItemRow:
+         [ObservableProperty] string? _newAssignmentParticipantId;
+         [ObservableProperty] int? _newAssignmentQuantity;
+       And on GearViewModel:
+         [RelayCommand] private async Task AssignFromRowAsync(GearItemRow row) { /* read row.NewAssignment*; call CreateAssignment */ }
+         [RelayCommand] private async Task UnassignAsync(AssignmentRow row) { /* row has AssignmentId + parent in row? or pass parent via Tag */ }
+         [RelayCommand] private async Task UpdateAssignmentAsync(AssignmentRow row) { /* row.Quantity */ }
+  -->
+  <DockPanel Margin="8">
+    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+      <ComboBox Width="140" SelectedIndex="{Binding NewProvisioning}">
+        <ComboBoxItem Content="Per person"/>
+        <ComboBoxItem Content="Shared"/>
+      </ComboBox>
+      <TextBox Width="140" Margin="8,0,0,0" Text="{Binding NewGroup, UpdateSourceTrigger=PropertyChanged}"/>
+      <TextBox Width="200" Margin="8,0,0,0" Text="{Binding NewName, UpdateSourceTrigger=PropertyChanged}"/>
+      <TextBox Width="120" Margin="8,0,0,0" Text="{Binding NewNeededQty, UpdateSourceTrigger=PropertyChanged}"/>
+      <Button Content="Add item" Margin="8,0,0,0" Command="{Binding CreateCommand}"/>
+      <Button Content="Camping preset" Margin="8,0,0,0" Command="{Binding BulkCreateCampingPresetCommand}"/>
+    </StackPanel>
+
+    <ItemsControl ItemsSource="{Binding Items}">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate>
+          <Border BorderBrush="#DDD" BorderThickness="1" Padding="8" Margin="0,0,0,8">
+            <DockPanel>
+              <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                <Button Content="Save" Margin="8,0,0,0"
+                        Command="{Binding DataContext.UpdateCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                        CommandParameter="{Binding}"/>
+                <Button Content="Delete" Margin="8,0,0,0"
+                        Command="{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                        CommandParameter="{Binding}"/>
+              </StackPanel>
+
+              <StackPanel>
+                <StackPanel Orientation="Horizontal">
+                  <TextBox Width="130" Text="{Binding Group, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,0"/>
+                  <TextBox Width="220" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,0"/>
+                  <ComboBox Width="120" SelectedIndex="{Binding Provisioning}">
+                    <ComboBoxItem Content="Per person"/>
+                    <ComboBoxItem Content="Shared"/>
+                  </ComboBox>
+                  <TextBox Width="120" Margin="8,0,0,0" Text="{Binding NeededQuantity, UpdateSourceTrigger=PropertyChanged}"/>
+                </StackPanel>
+
+                <!-- Assignments -->
+                <GroupBox Header="Assignments" Margin="0,8,0,0">
+                  <DockPanel>
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+                      <TextBox Width="200"
+                               Text="{Binding NewAssignmentParticipantId, UpdateSourceTrigger=PropertyChanged}"/>
+                      <TextBox Width="80" Margin="8,0,0,0"
+                               Text="{Binding NewAssignmentQuantity, UpdateSourceTrigger=PropertyChanged}"/>
+                      <Button Content="Assign"
+                              Margin="8,0,0,0"
+                              Command="{Binding DataContext.AssignFromRowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                              CommandParameter="{Binding}"/>
+                    </StackPanel>
+
+                    <DataGrid ItemsSource="{Binding Assignments}" AutoGenerateColumns="False" CanUserAddRows="False">
+                      <DataGrid.Columns>
+                        <DataGridTextColumn Header="Participant" Binding="{Binding ParticipantId}" Width="*"/>
+                        <DataGridTextColumn Header="Qty" Binding="{Binding Quantity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="80"/>
+                        <DataGridTemplateColumn Header="" Width="150">
+                          <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                              <StackPanel Orientation="Horizontal">
+                                <Button Content="Update"
+                                        Command="{Binding DataContext.UpdateAssignmentCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        CommandParameter="{Binding}"/>
+                                <Button Content="Remove" Margin="8,0,0,0"
+                                        Command="{Binding DataContext.UnassignCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        CommandParameter="{Binding}"/>
+                              </StackPanel>
+                            </DataTemplate>
+                          </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                      </DataGrid.Columns>
+                    </DataGrid>
+                  </DockPanel>
+                </GroupBox>
+              </StackPanel>
+            </DockPanel>
+          </Border>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+  </DockPanel>
+</UserControl>

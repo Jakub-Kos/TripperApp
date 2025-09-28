@@ -1,0 +1,106 @@
+﻿<UserControl x:Class="TripPlanner.Wpf.Views.DatesTab"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid Margin="8">
+    <Grid.Resources>
+      <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+    </Grid.Resources>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="8"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+    <!-- Range -->
+    <StackPanel Orientation="Horizontal">
+      <TextBlock Text="Date range:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+      <DatePicker SelectedDate="{Binding RangeStart}" Margin="0,0,8,0"/>
+      <TextBlock Text="–" VerticalAlignment="Center" Margin="0,0,8,0"/>
+      <DatePicker SelectedDate="{Binding RangeEnd}" Margin="0,0,8,0"/>
+      <Button Content="Save range" Command="{Binding SaveRangeCommand}" />
+    </StackPanel>
+
+    <!-- Self vote -->
+    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,8,0,0">
+      <TextBlock Text="Vote (me):" VerticalAlignment="Center" Margin="0,0,8,0"/>
+      <DatePicker SelectedDate="{Binding VoteDate}" Margin="0,0,8,0"/>
+      <Button Content="Vote" Command="{Binding VoteSelfCommand}" Margin="0,0,8,0"/>
+      <Button Content="Unvote" Command="{Binding UnvoteSelfCommand}"/>
+    </StackPanel>
+
+    <!-- Proxy vote -->
+    <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,8,0,0">
+      <TextBlock Text="Proxy:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+      <TextBox Width="180" Text="{Binding ProxyParticipantId, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,0" />
+      <DatePicker SelectedDate="{Binding VoteDate}" Margin="0,0,8,0"/>
+      <Button Content="Vote" Command="{Binding VoteProxyCommand}" Margin="0,0,8,0"/>
+      <Button Content="Unvote" Command="{Binding UnvoteProxyCommand}"/>
+    </StackPanel>
+
+    <Grid Grid.Row="4">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="*"/>
+      </Grid.ColumnDefinitions>
+      <!-- Availability -->
+      <GroupBox Header="Daily availability" Margin="0,0,8,0">
+        <DataGrid ItemsSource="{Binding Availability}" AutoGenerateColumns="False" HeadersVisibility="Column" CanUserAddRows="False">
+          <DataGrid.Columns>
+            <DataGridTextColumn Header="Date" Binding="{Binding Date}"/>
+            <DataGridTextColumn Header="Voters" Binding="{Binding ParticipantIds.Length}"/>
+          </DataGrid.Columns>
+        </DataGrid>
+      </GroupBox>
+
+      <!-- Terms -->
+      <GroupBox Header="Term proposals" Grid.Column="1" Margin="8,0,0,0">
+        <DockPanel>
+          <!-- VM tweak note: expose ProposedStart, ProposedEnd, and ProposeTermCommand (no params). -->
+          <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+            <TextBlock Text="New term:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <DatePicker SelectedDate="{Binding ProposedStart}" Margin="0,0,8,0"/>
+            <TextBlock Text="–" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <DatePicker SelectedDate="{Binding ProposedEnd}" Margin="0,0,8,0"/>
+            <Button Content="Propose" Command="{Binding ProposeTermCommand}"/>
+          </StackPanel>
+
+          <ListView ItemsSource="{Binding Terms}">
+            <ListView.ItemTemplate>
+              <DataTemplate>
+                <DockPanel Margin="0,0,0,6">
+                  <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                    <Button Content="Vote" Margin="8,0,0,0"
+                            Command="{Binding DataContext.VoteTermCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                            CommandParameter="{Binding}"/>
+                    <Button Content="Unvote" Margin="8,0,0,0"
+                            Command="{Binding DataContext.UnvoteTermCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                            CommandParameter="{Binding}"/>
+                    <Button Content="Choose" Margin="8,0,0,0"
+                            Command="{Binding DataContext.ChooseTermCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                            CommandParameter="{Binding}"/>
+                    <Button Content="Delete" Margin="8,0,0,0"
+                            Command="{Binding DataContext.DeleteTermCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                            CommandParameter="{Binding}"/>
+                  </StackPanel>
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{Binding Start}" Margin="0,0,6,0"/>
+                    <TextBlock Text="–" Margin="0,0,6,0"/>
+                    <TextBlock Text="{Binding End}" Margin="0,0,12,0"/>
+                    <TextBlock Text="Votes:" Foreground="Gray" Margin="0,0,4,0"/>
+                    <TextBlock Text="{Binding Votes}" Foreground="Gray"/>
+                    <TextBlock Text="  " />
+                    <TextBlock Text="Chosen" Foreground="SeaGreen" Visibility="{Binding IsChosen, Converter={StaticResource BoolToVis}}"/>
+                  </StackPanel>
+                </DockPanel>
+              </DataTemplate>
+            </ListView.ItemTemplate>
+          </ListView>
+        </DockPanel>
+      </GroupBox>
+    </Grid>
+
+    <TextBlock Grid.Row="5" Foreground="Gray" Text="Tip: set the overall range, then vote dates (self or proxy). Propose terms and choose one to finalize."/>
+  </Grid>
+</UserControl>

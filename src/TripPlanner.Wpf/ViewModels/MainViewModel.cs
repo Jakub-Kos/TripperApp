@@ -1,423 +1,136 @@
 ﻿using System;
 using System.Collections.ObjectModel;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TripPlanner.Client.Abstractions;
-using TripPlanner.Client.Errors;
 using TripPlanner.Core.Contracts.Contracts.V1.Trips;
-using System.Windows;
 
 namespace TripPlanner.Wpf.ViewModels;
 
 public partial class MainViewModel : ObservableObject
 {
-    public sealed class TripListItem
-    {
-        public string TripId { get; }
-        public string Name { get; }
-        public string Description { get; }
-        public bool IsFinished { get; }
-        public string DescriptionSnippet => string.IsNullOrWhiteSpace(Description)
-            ? ""
-            : (Description.Length <= 80 ? Description : Description.Substring(0, 80) + "...");
-        public TripListItem(string tripId, string name, string description, bool isFinished)
-        {
-            TripId = tripId; Name = name; Description = description ?? ""; IsFinished = isFinished;
-        }
-    }
-
     private readonly ITripPlannerClient _client;
 
-    [ObservableProperty] private string? _status;
+    public MainViewModel(
+        ITripPlannerClient client,
+        OverviewViewModel overview,
+        ParticipantsViewModel participants,
+        DatesViewModel dates,
+        DestinationsViewModel destinations,
+        GearViewModel gear,
+        ItineraryViewModel itinerary,
+        TransportationsViewModel transport,
+        InvitesViewModel invites)
+    {
+        _client = client;
+        Overview = overview;
+        Participants = participants;
+        Dates = dates;
+        Destinations = destinations;
+        Gear = gear;
+        Itinerary = itinerary;
+        Transport = transport;
+        Invites = invites;
+    }
+
     [ObservableProperty] private bool _busy;
+    [ObservableProperty] private string _status = "";
 
-    // Create / Join trip
-    [ObservableProperty] private string _newTripName = "";
-    [ObservableProperty] private string _joinCode = "";
-
-    // Selection & summary
     public ObservableCollection<TripListItem> Trips { get; } = new();
 
     [ObservableProperty] private TripListItem? _selectedTrip;
-    [ObservableProperty] private TripSummaryDto? _selectedSummary;
 
-    // Participant & date actions
-    [ObservableProperty] private string? _newParticipantUserIdText;
-    [ObservableProperty] private string _newParticipantDisplayName = "";
-    [ObservableProperty] private DateTime? _newDate = DateTime.Today.AddDays(7);
-    [ObservableProperty] private string _voteUserId = "00000000-0000-0000-0000-000000000002";
-    [ObservableProperty] private string? _selectedDateOptionId;
+    public OverviewViewModel Overview { get; }
+    public ParticipantsViewModel Participants { get; }
+    public DatesViewModel Dates { get; }
+    public DestinationsViewModel Destinations { get; }
+    public GearViewModel Gear { get; }
+    public ItineraryViewModel Itinerary { get; }
+    public TransportationsViewModel Transport { get; }
+    public InvitesViewModel Invites { get; }
 
-    // Optional: also expose an ID-only selection for XAML that binds SelectedValuePath="TripId"
-    private string? _selectedTripId;
-    public string? SelectedTripId
-    {
-        get => _selectedTripId;
-        set
-        {
-            if (_selectedTripId == value) return;
-            _selectedTripId = value;
-            OnPropertyChanged();
-
-            // Keep SelectedTrip in sync when binding uses SelectedValue (TripId)
-            var match = Trips.FirstOrDefault(t => t.TripId == value);
-            if (!ReferenceEquals(SelectedTrip, match))
-                SelectedTrip = match;
-        }
-    }
-
-    public DestinationsViewModel DestinationsVm { get; }
-
-    // Selected tab in the right panel (0=Overview, 1=Destination)
-    [ObservableProperty]
-    private int _selectedSectionIndex = 0;
-
-    // Overview panel state
-    [ObservableProperty] private string _descriptionMarkdown = "";
-    [ObservableProperty] private bool _selectedTripIsFinished;
-    [ObservableProperty] private bool _isEditingOverview;
-
-    public bool IsOverviewReadOnly => !IsEditingOverview;
-
-    partial void OnIsEditingOverviewChanged(bool value)
-    {
-        OnPropertyChanged(nameof(IsOverviewReadOnly));
-    }
-
-    private string _originalDescription = "";
-    private bool _originalIsFinished;
-
-    public MainViewModel(ITripPlannerClient client, DestinationsViewModel destinationsVm)
-    {
-        _client = client;
-        DestinationsVm = destinationsVm;
-        // IMPORTANT: No fire-and-forget here. Call InitializeAsync() from App after sign-in.
-    }
-
-    /// <summary>
-    /// Call this from App.xaml.cs after successful sign-in, and AWAIT it.
-    /// </summary>
-    public async Task InitializeAsync(CancellationToken ct = default)
-    {
-        await GuardAsync(async () =>
-        {
-            await LoadTripsAsync(ct);
-
-            // Auto-select first trip on initial load -> this will also drive Destinations tab
-            if (Trips.Count > 0 && SelectedTrip is null && SelectedTripId is null)
-                SelectedTrip = Trips[0];
-        });
-    }
-
-    [ObservableProperty]
-    private bool _includeFinished = false;
-
-    partial void OnIncludeFinishedChanged(bool value)
-    {
-        // Auto refresh when toggled
-        _ = RefreshAsync();
-    }
-
-    private async Task LoadTripsAsync(CancellationToken ct)
-    {
-        var page = await _client.ListMyTripsAsync(includeFinished: IncludeFinished, skip: 0, take: 50, ct);
-        Trips.Clear();
-        foreach (var t in page)
-        {
-            // Fetch summary to get description and finished flag
-            var sum = await _client.GetTripByIdAsync(t.TripId, ct);
-            if (sum is not null)
-                Trips.Add(new TripListItem(sum.TripId, sum.Name, sum.Description, sum.IsFinished));
-            else
-                Trips.Add(new TripListItem(t.TripId, t.Name, "", false));
-        }
-
-        Status = $"Loaded {Trips.Count} trips (includeFinished={IncludeFinished}).";
-    }
-
-    [RelayCommand]
-    private async Task RefreshAsync()
-    {
-        await GuardAsync(async () =>
-        {
-            await LoadTripsAsync(CancellationToken.None);
-
-            // keep current selection by id if possible
-            if (SelectedTrip is not null)
-            {
-                var keep = Trips.FirstOrDefault(t => t.TripId == SelectedTrip.TripId);
-                SelectedTrip = keep ?? Trips.FirstOrDefault();
-            }
-            else if (SelectedTripId is not null)
-            {
-                var keep = Trips.FirstOrDefault(t => t.TripId == SelectedTripId);
-                SelectedTrip = keep ?? Trips.FirstOrDefault();
-            }
-        });
-    }
+    public async Task InitializeAsync() => await LoadTripsInternal();
 
     partial void OnSelectedTripChanged(TripListItem? value)
     {
-        // Keep SelectedTripId in sync (when binding uses SelectedItem)
-        var newId = value?.TripId;
-        if (_selectedTripId != newId)
-        {
-            _selectedTripId = newId;
-            OnPropertyChanged(nameof(SelectedTripId));
-        }
-
-        // Load summary (async) and wire Destinations tab
-        _ = LoadSummaryAsync(newId);
-
-        DestinationsVm.TripId   = newId ?? string.Empty;
-        DestinationsVm.TripName = value?.Name;
-
-        // Kick a refresh on the Destinations tab (if user already opened it)
-        if (DestinationsVm.RefreshCommand.CanExecute(null))
-            DestinationsVm.RefreshCommand.Execute(null);
-    }
-
-    private async Task LoadSummaryAsync(string? tripId)
-    {
-        if (string.IsNullOrWhiteSpace(tripId)) { SelectedSummary = null; DescriptionMarkdown = ""; SelectedTripIsFinished = false; IsEditingOverview = false; return; }
-
-        await GuardAsync(async () =>
-        {
-            SelectedSummary = await _client.GetTripByIdAsync(tripId);
-            var desc = SelectedSummary?.Description ?? string.Empty;
-            DescriptionMarkdown = desc;
-            SelectedTripIsFinished = SelectedSummary?.IsFinished ?? false;
-            // reset edit state and originals on new selection
-            _originalDescription = DescriptionMarkdown;
-            _originalIsFinished = SelectedTripIsFinished;
-            IsEditingOverview = false;
-            // Date options are no longer part of TripSummary; leave SelectedDateOptionId unchanged.
-        });
+        _ = InitializeTabsForSelection();
     }
 
     [RelayCommand]
-    private void EnterEditOverview()
-    {
-        if (SelectedTrip is null) return;
-        _originalDescription = DescriptionMarkdown;
-        _originalIsFinished = SelectedTripIsFinished;
-        IsEditingOverview = true;
-        Status = "Editing overview...";
-    }
-
-    [RelayCommand]
-    private void CancelEditOverview()
-    {
-        DescriptionMarkdown = _originalDescription;
-        SelectedTripIsFinished = _originalIsFinished;
-        IsEditingOverview = false;
-        Status = "Discarded changes.";
-    }
-
-    [RelayCommand]
-    private async Task SaveOverviewAsync()
-    {
-        if (SelectedTrip is null) { Status = "Select a trip."; return; }
-        await GuardAsync(async () =>
-        {
-            bool any = false;
-            if (DescriptionMarkdown != _originalDescription)
-            {
-                var res = await _client.SetTripDescriptionAsync(SelectedTrip.TripId, DescriptionMarkdown);
-                if (!res.ok)
-                {
-                    Status = res.forbidden ? "Only organizer can change description." : "Trip not found.";
-                    return;
-                }
-                any = true;
-            }
-            if (SelectedTripIsFinished != _originalIsFinished)
-            {
-                var ok = await _client.UpdateTripStatusAsync(SelectedTrip.TripId, SelectedTripIsFinished);
-                if (!ok)
-                {
-                    Status = "Failed to update status.";
-                    return;
-                }
-                any = true;
-            }
-            if (any)
-            {
-                // refresh summary
-                await LoadSummaryAsync(SelectedTrip.TripId);
-                Status = "Saved changes.";
-            }
-            else
-            {
-                Status = "No changes.";
-            }
-            IsEditingOverview = false;
-        });
-    }
+    private async Task ReloadTripsAsync() => await LoadTripsInternal();
 
     [RelayCommand]
     private async Task CreateTripAsync()
     {
-        await GuardAsync(async () =>
+        try
         {
-            var created = await _client.CreateTripAsync(new CreateTripRequest(NewTripName));
-            await RefreshAsync();
-            SelectedTrip = Trips.FirstOrDefault(t => t.TripId == created.TripId);
-            Status = $"Created trip “{created.Name}”.";
-        });
+            Busy = true; Status = "Creating trip...";
+            var created = await _client.CreateTripAsync(new CreateTripRequest("New Trip"));
+            await LoadTripsInternal(created.TripId);
+            Status = "Trip created.";
+        }
+        catch (Exception ex) { Status = ex.Message; }
+        finally { Busy = false; }
     }
 
     [RelayCommand]
-    private async Task JoinByCodeAsync()
+    private async Task DeleteTripAsync()
     {
-        if (string.IsNullOrWhiteSpace(JoinCode)) { Status = "Enter a code."; return; }
-        await GuardAsync(async () =>
+        if (SelectedTrip is null) return;
+        try
         {
-            var ok = await _client.JoinByCodeAsync(JoinCode);
-            if (!ok)
-            {
-                Status = "Invalid or expired code.";
-                return;
-            }
-            JoinCode = string.Empty;
-            await RefreshAsync();
-            Status = "Joined the trip via code.";
-        });
+            Busy = true; Status = "Deleting trip...";
+            // Delete trip is not available in current API; skipping.
+            await Task.Delay(150);
+            await LoadTripsInternal();
+            Status = "Delete not supported in this build.";
+        }
+        catch (Exception ex) { Status = ex.Message; }
+        finally { Busy = false; }
     }
 
-    [RelayCommand]
-    private async Task AddParticipantAsync()
-    {
-        if (SelectedTrip is null) { Status = "Select a trip."; return; }
-
-        await GuardAsync(async () =>
-        {
-            var req = Guid.TryParse(NewParticipantUserIdText, out var userId)
-                ? new AddParticipantRequest(userId, "")
-                : new AddParticipantRequest(null, NewParticipantDisplayName);
-
-            if (req.UserId is null && string.IsNullOrWhiteSpace(req.DisplayName))
-            {
-                Status = "Enter a valid UserId or a display name.";
-                return;
-            }
-
-            var ok = await _client.AddParticipantAsync(SelectedTrip.TripId, req);
-            Status = ok ? "Participant added." : "Trip not found.";
-            await LoadSummaryAsync(SelectedTrip.TripId);
-        });
-    }
-
-    [RelayCommand]
-    private async Task AddPlaceholderParticipantAsync()
-    {
-        if (SelectedTrip is null) { Status = "Select a trip."; return; }
-        await GuardAsync(async () =>
-        {
-            var ok = await _client.AddParticipantAsync(SelectedTrip.TripId, new AddParticipantRequest(null, "Placeholder"));
-            Status = ok ? "Placeholder participant added." : "Trip not found.";
-            await LoadSummaryAsync(SelectedTrip.TripId);
-        });
-    }
-
-    [RelayCommand]
-    private async Task ProposeDateAsync()
-    {
-        if (SelectedTrip is null) { Status = "Select a trip."; return; }
-        if (NewDate is null) { Status = "Pick a date."; return; }
-
-        await GuardAsync(async () =>
-        {
-            var dateIso = DateOnly.FromDateTime(NewDate.Value).ToString("yyyy-MM-dd");
-            var ok = await _client.VoteOnDateAsync(SelectedTrip.TripId, dateIso);
-            Status = ok ? $"Voted for {dateIso}." : "Trip not found.";
-            await LoadSummaryAsync(SelectedTrip.TripId);
-        });
-    }
-
-
-    [RelayCommand]
-    private void GoToDestinations()
-    {
-        // Switch to Destinations tab
-        SelectedSectionIndex = 1;
-        Status = "Opened Destinations tab.";
-    }
-
-    [RelayCommand]
-    private async Task CopyInviteLinkAsync()
-    {
-        if (SelectedTrip is null) { Status = "Select a trip."; return; }
-        await GuardAsync(async () =>
-        {
-            var res = await _client.CreateInviteAsync(SelectedTrip.TripId);
-            if (res is null)
-            {
-                Status = "Trip not found.";
-                return;
-            }
-            try
-            {
-                Clipboard.SetText(res.Value.url);
-                Status = "Invite link copied to clipboard.";
-            }
-            catch
-            {
-                Status = $"Invite created: {res.Value.url}";
-            }
-        });
-    }
-
-    [RelayCommand]
-    private async Task CastVoteAsync()
-    {
-        if (SelectedTrip is null) { Status = "Select a trip."; return; }
-        if (NewDate is null) { Status = "Pick a date."; return; }
-
-        await GuardAsync(async () =>
-        {
-            var dateIso = DateOnly.FromDateTime(NewDate.Value).ToString("yyyy-MM-dd");
-            var ok = await _client.VoteOnDateAsync(SelectedTrip.TripId, dateIso);
-            Status = ok ? $"Voted for {dateIso}." : "Trip or date invalid.";
-            await LoadSummaryAsync(SelectedTrip.TripId);
-        });
-    }
-
-    [RelayCommand]
-    private async Task MarkFinishedAsync()
-    {
-        if (SelectedTrip is null) { Status = "Select a trip."; return; }
-        await GuardAsync(async () =>
-        {
-            var ok = await _client.UpdateTripStatusAsync(SelectedTrip.TripId, true);
-            Status = ok ? "Marked as finished." : "Trip not found.";
-            await RefreshAsync();
-        });
-    }
-
-    // Small helper for UI-safe error handling
-    private async Task GuardAsync(Func<Task> action)
+    private async Task LoadTripsInternal(string? selectTripId = null)
     {
         try
         {
-            Busy = true;
-            await action();
+            Busy = true; Status = "Loading trips...";
+            Trips.Clear();
+            var mine = await _client.ListMyTripsAsync(includeFinished: false);
+            foreach (var t in mine)
+                Trips.Add(new TripListItem(t.TripId, t.Name));
+            SelectedTrip = Trips.FirstOrDefault(x => x.TripId == selectTripId) ?? Trips.FirstOrDefault();
         }
-        catch (ApiException ex)
+        catch (Exception ex) { Status = ex.Message; }
+        finally { Busy = false; }
+    }
+
+    private async Task InitializeTabsForSelection()
+    {
+        if (SelectedTrip is null) return;
+        var tripId = SelectedTrip.TripId;
+
+        try
         {
-            // Show friendly API errors (401/403/validation/etc.)
-            Status = ex.Error?.Message ?? ex.Message;
+            Busy = true; Status = "Loading trip details...";
+            // Overview loads summary + description
+            await Overview.LoadAsync(tripId);
+
+            // Other tabs
+            await Participants.LoadAsync(tripId);
+            await Dates.LoadAsync(tripId);
+            await Destinations.LoadAsync(tripId);
+            await Gear.LoadAsync(tripId);
+            await Itinerary.LoadAsync(tripId);
+            await Transport.LoadAsync(tripId);
+            await Invites.LoadAsync(tripId);
+
+            Status = "Ready.";
         }
-        catch (Exception ex)
-        {
-            Status = ex.Message;
-        }
-        finally
-        {
-            Busy = false;
-        }
+        catch (Exception ex) { Status = ex.Message; }
+        finally { Busy = false; }
     }
 }
+
+public sealed record TripListItem(string TripId, string Name);
