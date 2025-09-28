@@ -11,16 +11,40 @@ namespace TripPlanner.Api.Endpoints;
 
 public static class DateEndpoints
 {
-    public record DateSelfVoteRequest(string DateOptionId);
-    public record DateProxyVoteRequest(string DateOptionId, string ParticipantId);
+    public record DateSelfVoteRequest(string Date); // YYYY-MM-DD
+    public record DateProxyVoteRequest(string Date, string ParticipantId);
+    public record SetDateRangeRequest(string Start, string End); // YYYY-MM-DD
     
     public static IEndpointRouteBuilder MapDateEndpoints(this IEndpointRouteBuilder v1)
     {
+        v1.MapPut("/trips/{tripId:guid}/date-range",
+                async (Guid tripId, SetDateRangeRequest req, AppDbContext db, CancellationToken ct) =>
+                {
+                    if (!DateOnly.TryParse(req.Start, out var start) || !DateOnly.TryParse(req.End, out var end))
+                        return Results.BadRequest("Invalid date format. Use YYYY-MM-DD.");
+                    if (end < start) return Results.BadRequest("End must be on or after start.");
+
+                    var trip = await db.Trips.FirstOrDefaultAsync(t => t.TripId == tripId, ct);
+                    if (trip is null) return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip not found"));
+
+                    trip.StartDate = start;
+                    trip.EndDate = end;
+                    await db.SaveChangesAsync(ct);
+                    return Results.NoContent();
+                })
+            .WithTags("Dates")
+            .WithSummary("Set trip date range")
+            .WithDescription("Defines the inclusive date range during which the trip should take place.")
+            .Accepts<SetDateRangeRequest>("application/json")
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status400BadRequest);
+
         v1.MapPost("/trips/{tripId:guid}/date-votes",
                 async (Guid tripId, DateSelfVoteRequest req, AppDbContext db, System.Security.Claims.ClaimsPrincipal user, CancellationToken ct) =>
                 {
-                    if (!Guid.TryParse(req.DateOptionId, out var dateOptionId))
-                        return Results.BadRequest("Invalid DateOptionId.");
+                    if (!DateOnly.TryParse(req.Date, out var date))
+                        return Results.BadRequest("Invalid date format. Use YYYY-MM-DD.");
 
                     var sub = user.FindFirst("sub")?.Value ?? user.FindFirst("nameid")?.Value;
                     if (!Guid.TryParse(sub, out var me)) return Results.Unauthorized();
@@ -32,21 +56,33 @@ public static class DateEndpoints
 
                     if (participantId == Guid.Empty) return Results.Forbid();
 
-                    var optExists = await db.DateOptions.AnyAsync(o => o.TripId == tripId && o.DateOptionId == dateOptionId, ct);
-                    if (!optExists) return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip or option not found"));
+                    var trip = await db.Trips.FirstOrDefaultAsync(t => t.TripId == tripId, ct);
+                    if (trip is null) return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip not found"));
+                    if (trip.StartDate is not null && trip.EndDate is not null && (date < trip.StartDate || date > trip.EndDate))
+                        return Results.BadRequest("Date is outside the defined range.");
 
-                    var dup = await db.DateVotes.AnyAsync(v => v.DateOptionId == dateOptionId && v.ParticipantId == participantId, ct);
+                    // find or create date option for this date
+                    var dateIso = date.ToString("yyyy-MM-dd");
+                    var opt = await db.DateOptions.FirstOrDefaultAsync(o => o.TripId == tripId && o.DateIso == dateIso, ct);
+                    if (opt is null)
+                    {
+                        opt = new DateOptionRecord { DateOptionId = Guid.NewGuid(), TripId = tripId, DateIso = dateIso };
+                        db.DateOptions.Add(opt);
+                        await db.SaveChangesAsync(ct);
+                    }
+
+                    var dup = await db.DateVotes.AnyAsync(v => v.DateOptionId == opt.DateOptionId && v.ParticipantId == participantId, ct);
                     if (!dup)
                     {
-                        db.DateVotes.Add(new DateVoteRecord { DateOptionId = dateOptionId, ParticipantId = participantId });
+                        db.DateVotes.Add(new DateVoteRecord { DateOptionId = opt.DateOptionId, ParticipantId = participantId });
                         await db.SaveChangesAsync(ct);
                     }
 
                     return Results.NoContent();
                 })
             .WithTags("Dates")
-            .WithSummary("Vote self for date option")
-            .WithDescription("Current user votes using their participant identity.")
+            .WithSummary("Vote self for a specific date within the range")
+            .WithDescription("Current user votes for a specific date (YYYY-MM-DD). If the date option doesn't exist, it's created.")
             .Accepts<DateSelfVoteRequest>("application/json")
             .Produces(StatusCodes.Status204NoContent)
             .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
@@ -56,53 +92,53 @@ public static class DateEndpoints
         v1.MapPost("/trips/{tripId:guid}/date-votes/proxy",
                 async (Guid tripId, DateProxyVoteRequest req, AppDbContext db, CancellationToken ct) =>
                 {
-                    if (!Guid.TryParse(req.DateOptionId, out var dateOptionId) ||
+                    if (!DateOnly.TryParse(req.Date, out var date) ||
                         !Guid.TryParse(req.ParticipantId, out var participantId))
-                        return Results.BadRequest("Invalid ids.");
+                        return Results.BadRequest("Invalid inputs.");
 
                     var placeholder = await db.Participants.FirstOrDefaultAsync(
                         p => p.TripId == tripId && p.ParticipantId == participantId && p.UserId == null, ct);
 
                     if (placeholder is null) return Results.BadRequest("Only placeholders can be proxied or participant not found.");
 
-                    var optExists = await db.DateOptions.AnyAsync(o => o.TripId == tripId && o.DateOptionId == dateOptionId, ct);
-                    if (!optExists) return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip or option not found"));
+                    var trip = await db.Trips.FirstOrDefaultAsync(t => t.TripId == tripId, ct);
+                    if (trip is null) return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip not found"));
+                    if (trip.StartDate is not null && trip.EndDate is not null && (date < trip.StartDate || date > trip.EndDate))
+                        return Results.BadRequest("Date is outside the defined range.");
 
-                    var dup = await db.DateVotes.AnyAsync(v => v.DateOptionId == dateOptionId && v.ParticipantId == participantId, ct);
+                    var dateIso = date.ToString("yyyy-MM-dd");
+                    var opt = await db.DateOptions.FirstOrDefaultAsync(o => o.TripId == tripId && o.DateIso == dateIso, ct);
+                    if (opt is null)
+                    {
+                        opt = new DateOptionRecord { DateOptionId = Guid.NewGuid(), TripId = tripId, DateIso = dateIso };
+                        db.DateOptions.Add(opt);
+                        await db.SaveChangesAsync(ct);
+                    }
+
+                    var dup = await db.DateVotes.AnyAsync(v => v.DateOptionId == opt.DateOptionId && v.ParticipantId == participantId, ct);
                     if (!dup)
                     {
-                        db.DateVotes.Add(new DateVoteRecord { DateOptionId = dateOptionId, ParticipantId = participantId });
+                        db.DateVotes.Add(new DateVoteRecord { DateOptionId = opt.DateOptionId, ParticipantId = participantId });
                         await db.SaveChangesAsync(ct);
                     }
 
                     return Results.NoContent();
                 })
             .WithTags("Dates")
-            .WithSummary("Proxy vote for date option")
-            .WithDescription("Cast a vote on behalf of a placeholder participant.")
+            .WithSummary("Proxy vote for specific date")
+            .WithDescription("Cast a vote on behalf of a placeholder participant for a specific date (YYYY-MM-DD).")
             .Accepts<DateProxyVoteRequest>("application/json")
             .Produces(StatusCodes.Status204NoContent)
             .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
             .Produces(StatusCodes.Status400BadRequest);
         
         v1.MapPost("/trips/{tripId}/date-options",
-                async (string tripId, ProposeDateRequest req, ProposeDateOptionHandler handler, CancellationToken ct) =>
-                {
-                    var date = DateOnly.Parse(req.Date); // safe now thanks to validator
-                    var id = await handler.Handle(new ProposeDateOptionCommand(tripId, date), ct);
-                    return id is null
-                        ? Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip not found"))
-                        : Results.Created($"/api/v1/trips/{tripId}", new { dateOptionId = id.Value.Value.ToString("D") });
-                })
-            .AddEndpointFilter(new ValidationFilter<ProposeDateRequest>())
+                () => Results.StatusCode(StatusCodes.Status410Gone))
             .WithTags("Dates")
             .WithName("ProposeDateOption")
-            .WithSummary("Propose date option")
-            .WithDescription("Proposes a date (YYYY-MM-DD) for the trip.")
-            .Accepts<ProposeDateRequest>("application/json")
-            .Produces(StatusCodes.Status201Created)
-            .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
-            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest);
+            .WithSummary("Deprecated: propose date option")
+            .WithDescription("Deprecated. Use PUT /trips/{tripId}/date-range and POST /trips/{tripId}/date-votes with a date instead.")
+            .Produces(StatusCodes.Status410Gone);
         return v1;
     }
 }

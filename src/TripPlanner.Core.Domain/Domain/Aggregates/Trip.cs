@@ -14,6 +14,10 @@ public sealed class Trip
     public UserId OrganizerId { get; private set; }
     public IReadOnlyCollection<UserId> Participants => _participants;
     public IReadOnlyCollection<DateOption> DateOptions => _dateOptions;
+
+    // Date range for when the trip should take place (inclusive). If null, no range defined yet.
+    public DateOnly? StartDate { get; private set; }
+    public DateOnly? EndDate { get; private set; }
     
     private Trip(TripId id, string name, UserId organizerId)
     {
@@ -28,12 +32,41 @@ public sealed class Trip
 
     public void AddParticipant(UserId user) => _participants.Add(user);
     
+    public void SetDateRange(DateOnly start, DateOnly end)
+    {
+        if (end < start) throw new ArgumentException("End date must be on or after start date.");
+        StartDate = start;
+        EndDate = end;
+    }
+
+    public DateOption VoteOnDate(DateOnly date, UserId voter)
+    {
+        // If a range is set, enforce it
+        if (StartDate is not null && EndDate is not null)
+        {
+            if (date < StartDate.Value || date > EndDate.Value)
+                throw new InvalidOperationException("Date is outside the allowed trip range.");
+        }
+        var opt = _dateOptions.FirstOrDefault(d => d.Date == date);
+        if (opt is null)
+        {
+            opt = new DateOption(DateOptionId.New(), date);
+            _dateOptions.Add(opt);
+        }
+        opt.CastVote(voter);
+        return opt;
+    }
+
+    // Legacy: still allow creating option without a vote (internal usage)
     public DateOption ProposeDate(DateOnly date)
     {
-        if (_dateOptions.Any(d => d.Date == date)) return _dateOptions.First(d => d.Date == date);
-        var option = new DateOption(DateOptionId.New(), date);
-        _dateOptions.Add(option);
-        return option;
+        var opt = _dateOptions.FirstOrDefault(d => d.Date == date);
+        if (opt is null)
+        {
+            opt = new DateOption(DateOptionId.New(), date);
+            _dateOptions.Add(opt);
+        }
+        return opt;
     }
 
     public void CastVote(DateOptionId optId, UserId voter)
@@ -49,9 +82,13 @@ public sealed class Trip
         UserId organizerId,
         IEnumerable<UserId> participants,
         IEnumerable<(DateOptionId optId, DateOnly date, IEnumerable<UserId> votes)> dateOptions,
-        IEnumerable<(DestinationId Id, string Title, string? Description, IEnumerable<string> ImageUrls, IEnumerable<UserId> Votes)> destinations)
+        IEnumerable<(DestinationId Id, string Title, string? Description, IEnumerable<string> ImageUrls, IEnumerable<UserId> Votes)> destinations,
+        DateOnly? startDate = null,
+        DateOnly? endDate = null)
     {
         var t = new Trip(id, name, organizerId);
+        t.StartDate = startDate;
+        t.EndDate = endDate;
 
         // participants
         if (participants is not null)

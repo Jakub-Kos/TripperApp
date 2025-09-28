@@ -60,8 +60,13 @@ services.AddScoped<VoteDestinationHandler>();
 
 // Persistence (EF + SQLite)
 var cs = builder.Configuration.GetConnectionString("Default") ?? "Data Source=tripplanner.db";
+if (builder.Environment.IsDevelopment())
+{
+    // Use a unique DB per host to avoid file locking and schema clashes during parallel tests
+    cs = $"Data Source=tripplanner-{Guid.NewGuid():N}.db";
+}
 services.AddEfPersistence(
-    builder.Configuration.GetConnectionString("Default")!,
+    cs,
     builder.Environment);
 // --- AUTH ---
 services.AddJwtAuth(builder.Configuration);
@@ -77,17 +82,17 @@ if (app.Environment.IsDevelopment())
 {
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    // For development and tests, create schema directly from the current model to avoid pending migration issues.
     try
     {
-        await db.Database.MigrateAsync();
+        // Recreate to ensure a clean state for integration tests
+        await db.Database.EnsureDeletedAsync();
+        await db.Database.EnsureCreatedAsync();
     }
-    catch (Microsoft.Data.Sqlite.SqliteException ex)
-        when (ex.SqliteErrorCode == 1 && (ex.Message.Contains("duplicate column name") || ex.Message.Contains("already exists")))
+    catch (Exception)
     {
-        // local DB drifted; rebuild from scratch (common during dev when model changes)
-        var path = Path.Combine(AppContext.BaseDirectory, "tripplanner.db");
-        if (File.Exists(path)) File.Delete(path);
-        await db.Database.MigrateAsync();
+        // Fallback: try EnsureCreated only
+        await db.Database.EnsureCreatedAsync();
     }
 }
 

@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.Input;
 using TripPlanner.Client.Abstractions;
 using TripPlanner.Client.Errors;
 using TripPlanner.Core.Contracts.Contracts.V1.Trips;
+using System.Windows;
 
 namespace TripPlanner.Wpf.ViewModels;
 
@@ -33,8 +34,9 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string? _status;
     [ObservableProperty] private bool _busy;
 
-    // Create trip
+    // Create / Join trip
     [ObservableProperty] private string _newTripName = "";
+    [ObservableProperty] private string _joinCode = "";
 
     // Selection & summary
     public ObservableCollection<TripListItem> Trips { get; } = new();
@@ -68,6 +70,10 @@ public partial class MainViewModel : ObservableObject
     }
 
     public DestinationsViewModel DestinationsVm { get; }
+
+    // Selected tab in the right panel (0=Overview, 1=Destination)
+    [ObservableProperty]
+    private int _selectedSectionIndex = 0;
 
     // Overview panel state
     [ObservableProperty] private string _descriptionMarkdown = "";
@@ -265,6 +271,24 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private async Task JoinByCodeAsync()
+    {
+        if (string.IsNullOrWhiteSpace(JoinCode)) { Status = "Enter a code."; return; }
+        await GuardAsync(async () =>
+        {
+            var ok = await _client.JoinByCodeAsync(JoinCode);
+            if (!ok)
+            {
+                Status = "Invalid or expired code.";
+                return;
+            }
+            JoinCode = string.Empty;
+            await RefreshAsync();
+            Status = "Joined the trip via code.";
+        });
+    }
+
+    [RelayCommand]
     private async Task AddParticipantAsync()
     {
         if (SelectedTrip is null) { Status = "Select a trip."; return; }
@@ -288,6 +312,18 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private async Task AddPlaceholderParticipantAsync()
+    {
+        if (SelectedTrip is null) { Status = "Select a trip."; return; }
+        await GuardAsync(async () =>
+        {
+            var ok = await _client.AddParticipantAsync(SelectedTrip.TripId, new AddParticipantRequest(null, "Placeholder"));
+            Status = ok ? "Placeholder participant added." : "Trip not found.";
+            await LoadSummaryAsync(SelectedTrip.TripId);
+        });
+    }
+
+    [RelayCommand]
     private async Task ProposeDateAsync()
     {
         if (SelectedTrip is null) { Status = "Select a trip."; return; }
@@ -295,13 +331,43 @@ public partial class MainViewModel : ObservableObject
 
         await GuardAsync(async () =>
         {
-            var id = await _client.ProposeDateOptionAsync(
-                SelectedTrip.TripId,
-                new ProposeDateRequest(DateOnly.FromDateTime(NewDate.Value).ToString("yyyy-MM-dd"))
-            );
-
-            Status = id is not null ? $"Date option {id} proposed." : "Trip not found.";
+            var dateIso = DateOnly.FromDateTime(NewDate.Value).ToString("yyyy-MM-dd");
+            var ok = await _client.VoteOnDateAsync(SelectedTrip.TripId, dateIso);
+            Status = ok ? $"Voted for {dateIso}." : "Trip not found.";
             await LoadSummaryAsync(SelectedTrip.TripId);
+        });
+    }
+
+
+    [RelayCommand]
+    private void GoToDestinations()
+    {
+        // Switch to Destinations tab
+        SelectedSectionIndex = 1;
+        Status = "Opened Destinations tab.";
+    }
+
+    [RelayCommand]
+    private async Task CopyInviteLinkAsync()
+    {
+        if (SelectedTrip is null) { Status = "Select a trip."; return; }
+        await GuardAsync(async () =>
+        {
+            var res = await _client.CreateInviteAsync(SelectedTrip.TripId);
+            if (res is null)
+            {
+                Status = "Trip not found.";
+                return;
+            }
+            try
+            {
+                Clipboard.SetText(res.Value.url);
+                Status = "Invite link copied to clipboard.";
+            }
+            catch
+            {
+                Status = $"Invite created: {res.Value.url}";
+            }
         });
     }
 
@@ -309,16 +375,13 @@ public partial class MainViewModel : ObservableObject
     private async Task CastVoteAsync()
     {
         if (SelectedTrip is null) { Status = "Select a trip."; return; }
-        if (string.IsNullOrWhiteSpace(SelectedDateOptionId)) { Status = "Pick a date option."; return; }
+        if (NewDate is null) { Status = "Pick a date."; return; }
 
         await GuardAsync(async () =>
         {
-            var ok = await _client.CastVoteAsync(
-                SelectedTrip.TripId,
-                new CastVoteRequest(SelectedDateOptionId!, VoteUserId)
-            );
-
-            Status = ok ? "Vote cast." : "Option not found.";
+            var dateIso = DateOnly.FromDateTime(NewDate.Value).ToString("yyyy-MM-dd");
+            var ok = await _client.VoteOnDateAsync(SelectedTrip.TripId, dateIso);
+            Status = ok ? $"Voted for {dateIso}." : "Trip or date invalid.";
             await LoadSummaryAsync(SelectedTrip.TripId);
         });
     }

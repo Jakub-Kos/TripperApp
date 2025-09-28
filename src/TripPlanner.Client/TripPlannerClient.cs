@@ -55,25 +55,21 @@ public sealed class TripPlannerClient(HttpClient http) : ITripPlannerClient
         return false;
     }
 
-    public async Task<string?> ProposeDateOptionAsync(string tripId, ProposeDateRequest request, CancellationToken ct = default)
+    public async Task<bool> SetDateRangeAsync(string tripId, string startIso, string endIso, CancellationToken ct = default)
     {
-        using var res = await http.PostAsJsonAsync($"/api/v1/trips/{tripId}/date-options", request, ct);
-        if (res.StatusCode == HttpStatusCode.Created)
-        {
-            var obj = await res.Content.ReadFromJsonAsync<Dictionary<string,string>>(cancellationToken: ct);
-            return obj is not null && obj.TryGetValue("dateOptionId", out var id) ? id : null;
-        }
-        if (res.StatusCode == HttpStatusCode.NotFound) return null;
-        await ThrowIfError(res, "Failed to propose date option.", ct);
-        return null;
-    }
-
-    public async Task<bool> CastVoteAsync(string tripId, CastVoteRequest request, CancellationToken ct = default)
-    {
-        using var res = await http.PostAsJsonAsync($"/api/v1/trips/{tripId}/votes", request, ct);
+        using var res = await http.PutAsJsonAsync($"/api/v1/trips/{tripId}/date-range", new { start = startIso, end = endIso }, ct);
         if (res.StatusCode == HttpStatusCode.NoContent) return true;
         if (res.StatusCode == HttpStatusCode.NotFound) return false;
-        await ThrowIfError(res, "Failed to cast vote.", ct);
+        await ThrowIfError(res, "Failed to set date range.", ct);
+        return false;
+    }
+
+    public async Task<bool> VoteOnDateAsync(string tripId, string dateIso, CancellationToken ct = default)
+    {
+        using var res = await http.PostAsJsonAsync($"/api/v1/trips/{tripId}/date-votes", new { date = dateIso }, ct);
+        if (res.StatusCode == HttpStatusCode.NoContent) return true;
+        if (res.StatusCode == HttpStatusCode.NotFound) return false;
+        await ThrowIfError(res, "Failed to vote on date.", ct);
         return false;
     }
 
@@ -161,6 +157,28 @@ public sealed class TripPlannerClient(HttpClient http) : ITripPlannerClient
         if (res.StatusCode == HttpStatusCode.Forbidden) return (false, true);
         await ThrowIfError(res, "Failed to set description.", ct);
         return (false, false);
+    }
+
+    public async Task<(string code, string url)?> CreateInviteAsync(string tripId, int? expiresInMinutes = null, int? maxUses = null, CancellationToken ct = default)
+    {
+        using var res = await http.PostAsJsonAsync($"/api/v1/trips/{tripId}/invites", new { expiresInMinutes, maxUses }, ct);
+        if (res.StatusCode == HttpStatusCode.NotFound) return null;
+        res.EnsureSuccessStatusCode();
+        var dict = await res.Content.ReadFromJsonAsync<Dictionary<string, object>>(cancellationToken: ct);
+        if (dict is null) return null;
+        var code = dict.TryGetValue("code", out var c) ? c?.ToString() : null;
+        var url  = dict.TryGetValue("url", out var u) ? u?.ToString() : null;
+        if (code is null || url is null) return null;
+        return (code, url);
+    }
+
+    public async Task<bool> JoinByCodeAsync(string code, CancellationToken ct = default)
+    {
+        using var res = await http.PostAsJsonAsync($"/api/v1/trips/join", new { code }, ct);
+        if (res.StatusCode == HttpStatusCode.NoContent) return true;
+        if (res.StatusCode == HttpStatusCode.BadRequest) return false;
+        await ThrowIfError(res, "Failed to join trip by code.", ct);
+        return false;
     }
 
     private static async Task ThrowIfError(HttpResponseMessage res, string fallbackMessage, CancellationToken ct)

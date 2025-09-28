@@ -39,7 +39,9 @@ internal static class TripMap
             new UserId(r.OrganizerId),   // (organizer user id stays as user)
             participants,                // list of participant ids carried in UserId primitive
             options,
-            destinations
+            destinations,
+            r.StartDate,
+            r.EndDate
         );
     }
 
@@ -52,6 +54,8 @@ internal static class TripMap
             OrganizerId = trip.OrganizerId.Value,
             CreatedAt = DateTimeOffset.UtcNow,
             DescriptionMarkdown = "",
+            StartDate = trip.StartDate,
+            EndDate = trip.EndDate,
 
             // IMPORTANT: The aggregate's Participants contain participant IDs now.
             // We persist them as ParticipantRecord with UserId = null (placeholder by default).

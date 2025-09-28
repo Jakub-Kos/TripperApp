@@ -17,11 +17,12 @@
         <RowDefinition Height="Auto"/>
       </Grid.RowDefinitions>
       
-      <!-- Create trip -->
+      <!-- Create / Join trip -->
       <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
         <TextBlock Text="Name:" VerticalAlignment="Center" Margin="0,0,6,0"/>
-        <TextBox Width="240" Text="{Binding NewTripName, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,12,0"/>
+        <TextBox Width="200" Text="{Binding NewTripName, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,0"/>
         <Button Content="Create Trip" Command="{Binding CreateTripCommand}" />
+        
         <Button Content="Refresh" Command="{Binding RefreshCommand}" Margin="8,0,0,0"/>
         <CheckBox Content="Include finished trips" IsChecked="{Binding IncludeFinished}" Margin="12,0,0,0" VerticalAlignment="Center"/>
         <TextBlock Text="{Binding Status}" Margin="12,0,0,0" VerticalAlignment="Center" Foreground="DarkSlateGray"/>
@@ -116,6 +117,22 @@
                     <DataTemplate><TextBlock Text="{Binding}"/></DataTemplate>
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
+
+                <!-- Quick actions -->
+                <Separator Margin="0,8,0,8"/>
+                <TextBlock Text="Quick actions" FontWeight="SemiBold"/>
+                <StackPanel Orientation="Horizontal" Margin="0,4,0,4">
+                  <TextBlock Text="UserId:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                  <TextBox Width="260" Text="{Binding NewParticipantUserIdText, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,0"/>
+                  <TextBlock Text="or Name:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                  <TextBox Width="180" Text="{Binding NewParticipantDisplayName, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,0"/>
+                  <Button Content="Add participant" Command="{Binding AddParticipantCommand}" Width="120"/>
+                  <Button Content="Add placeholder" Command="{Binding AddPlaceholderParticipantCommand}" Width="130" Margin="8,0,0,0"/>
+                </StackPanel>
+                <!-- Propose date/destination removed from Overview per request -->
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                  <Button Content="Copy invite link" Command="{Binding CopyInviteLinkCommand}" Width="140"/>
+                </StackPanel>
 
                 <Separator Margin="0,8,0,8"/>
 

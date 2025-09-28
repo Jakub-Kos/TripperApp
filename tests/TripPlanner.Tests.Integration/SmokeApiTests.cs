@@ -183,18 +183,19 @@ public class SmokeApiTests : IClassFixture<WebApplicationFactory<Program>>
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessB);
             var joinResp = await client.PostAsJsonAsync("/api/v1/trips/join", new { code = inviteCode });
             joinResp.EnsureSuccessStatusCode();
-            // Propose a date
+            // Set date range then vote on a date
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessA);
+            var startIso = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(5)).ToString("yyyy-MM-dd");
             var dateIso = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(10)).ToString("yyyy-MM-dd");
-            var proposeDate = await client.PostAsJsonAsync($"/api/v1/trips/{tripId}/date-options", new { date = dateIso });
-            proposeDate.EnsureSuccessStatusCode();
-            var dateOptionId = (await proposeDate.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("dateOptionId").GetString()!;
-            // Vote A
-            var voteDateA = await client.PostAsJsonAsync($"/api/v1/trips/{tripId}/date-votes", new { dateOptionId });
+            var endIso = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(15)).ToString("yyyy-MM-dd");
+            var setRange = await client.PutAsJsonAsync($"/api/v1/trips/{tripId}/date-range", new { start = startIso, end = endIso });
+            setRange.EnsureSuccessStatusCode();
+            // Vote A by date
+            var voteDateA = await client.PostAsJsonAsync($"/api/v1/trips/{tripId}/date-votes", new { date = dateIso });
             voteDateA.EnsureSuccessStatusCode();
-            // Vote B
+            // Vote B by date
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessB);
-            var voteDateB = await client.PostAsJsonAsync($"/api/v1/trips/{tripId}/date-votes", new { dateOptionId });
+            var voteDateB = await client.PostAsJsonAsync($"/api/v1/trips/{tripId}/date-votes", new { date = dateIso });
             voteDateB.EnsureSuccessStatusCode();
         }
         finally
@@ -395,19 +396,20 @@ public class SmokeApiTests : IClassFixture<WebApplicationFactory<Program>>
             var createdTrip = await createTrip.Content.ReadFromJsonAsync<JsonElement>();
             tripId = createdTrip.GetProperty("tripId").GetString()!;
 
-            // Propose date
+            // Set date range
+            var startIso = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(5)).ToString("yyyy-MM-dd");
             var dateIso = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7)).ToString("yyyy-MM-dd");
-            var proposeDate = await client.PostAsJsonAsync($"/api/v1/trips/{tripId}/date-options", new { date = dateIso });
-            proposeDate.EnsureSuccessStatusCode();
-            var dateOptionId = (await proposeDate.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("dateOptionId").GetString()!;
+            var endIso = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(9)).ToString("yyyy-MM-dd");
+            var setRange = await client.PutAsJsonAsync($"/api/v1/trips/{tripId}/date-range", new { start = startIso, end = endIso });
+            setRange.EnsureSuccessStatusCode();
 
             // Create placeholder
             var createPh = await client.PostAsJsonAsync($"/api/v1/trips/{tripId}/placeholders", new { displayName = "Guest P" });
             createPh.EnsureSuccessStatusCode();
             var placeholderId = (await createPh.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("participantId").GetString()!;
 
-            // Proxy vote for date option
-            var proxyVote = await client.PostAsJsonAsync($"/api/v1/trips/{tripId}/date-votes/proxy", new { dateOptionId, participantId = placeholderId });
+            // Proxy vote for a date
+            var proxyVote = await client.PostAsJsonAsync($"/api/v1/trips/{tripId}/date-votes/proxy", new { date = dateIso, participantId = placeholderId });
             proxyVote.EnsureSuccessStatusCode();
         }
         finally

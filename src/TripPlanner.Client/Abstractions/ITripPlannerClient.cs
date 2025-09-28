@@ -16,8 +16,9 @@ public interface ITripPlannerClient
     Task<TripSummaryDto?> GetTripByIdAsync(string tripId, CancellationToken ct = default);
 
     Task<bool> AddParticipantAsync(string tripId, AddParticipantRequest request, CancellationToken ct = default);
-    Task<string?> ProposeDateOptionAsync(string tripId, ProposeDateRequest request, CancellationToken ct = default);
-    Task<bool> CastVoteAsync(string tripId, CastVoteRequest request, CancellationToken ct = default);
+    // Date range and voting
+    Task<bool> SetDateRangeAsync(string tripId, string startIso, string endIso, CancellationToken ct = default);
+    Task<bool> VoteOnDateAsync(string tripId, string dateIso, CancellationToken ct = default);
 
     // New API: update finished status
     Task<bool> UpdateTripStatusAsync(string tripId, bool isFinished, CancellationToken ct = default);
@@ -33,4 +34,11 @@ public interface ITripPlannerClient
     // Description APIs
     Task<string?> GetTripDescriptionAsync(string tripId, CancellationToken ct = default);
     Task<(bool ok, bool forbidden)> SetTripDescriptionAsync(string tripId, string description, CancellationToken ct = default);
+
+    // Invites
+    /// <summary>Creates an invite and returns (code, url) or null if trip not found.</summary>
+    Task<(string code, string url)?> CreateInviteAsync(string tripId, int? expiresInMinutes = null, int? maxUses = null, CancellationToken ct = default);
+
+    /// <summary>Joins a trip by invite code. Returns true on success (204), false on invalid/expired code (400).</summary>
+    Task<bool> JoinByCodeAsync(string code, CancellationToken ct = default);
 }
