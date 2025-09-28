@@ -12,6 +12,7 @@ public sealed class AppDbContext : DbContext
     public DbSet<ParticipantRecord> Participants => Set<ParticipantRecord>();
     public DbSet<DateOptionRecord> DateOptions => Set<DateOptionRecord>();
     public DbSet<DateVoteRecord> DateVotes => Set<DateVoteRecord>();
+    public DbSet<TermProposalRecord> TermProposals => Set<TermProposalRecord>();
     public DbSet<DestinationRecord> Destinations => Set<DestinationRecord>();
     public DbSet<DestinationImageRecord> DestinationImages => Set<DestinationImageRecord>();
     public DbSet<DestinationVoteRecord> DestinationVotes => Set<DestinationVoteRecord>();
@@ -33,6 +34,7 @@ public sealed class AppDbContext : DbContext
         
         modelBuilder.Entity<DateOptionRecord>(ConfigureDateOption);
         modelBuilder.Entity<DateVoteRecord>(ConfigureDateVote);
+        modelBuilder.Entity<TermProposalRecord>(ConfigureTermProposal);
 
         modelBuilder.Entity<DestinationRecord>(ConfigureDestination);
         modelBuilder.Entity<DestinationImageRecord>(ConfigureDestinationImage);
@@ -72,7 +74,7 @@ public sealed class AppDbContext : DbContext
         e.Property(x => x.OrganizerId).IsRequired();
         e.Property(x => x.CreatedAt).IsRequired();
         e.Property(x => x.DescriptionMarkdown).HasDefaultValue(string.Empty);
-
+        
         e.Property(x => x.IsFinished)
             .IsRequired()
             .HasDefaultValue(false);
@@ -90,6 +92,11 @@ public sealed class AppDbContext : DbContext
         e.HasMany(x => x.Destinations)
             .WithOne(d => d.Trip)
             .HasForeignKey(d => d.TripId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        e.HasMany(x => x.TermProposals)
+            .WithOne(t => t.Trip)
+            .HasForeignKey(t => t.TripId)
             .OnDelete(DeleteBehavior.Cascade);
     }
     
@@ -245,5 +252,22 @@ public sealed class AppDbContext : DbContext
         e.HasIndex(x => x.CodeHash).IsUnique();
         e.HasIndex(x => new { x.TripId, x.ParticipantId });
         e.HasIndex(x => x.ExpiresAt);
+    }
+
+    private static void ConfigureTermProposal(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<TermProposalRecord> e)
+    {
+        e.ToTable("TermProposals");
+        e.HasKey(x => x.TermProposalId);
+
+        e.Property(x => x.TripId).IsRequired();
+        e.Property(x => x.StartIso).IsRequired();
+        e.Property(x => x.EndIso).IsRequired();
+
+        e.HasIndex(x => new { x.TripId, x.StartIso, x.EndIso });
+
+        e.HasOne(x => x.Trip)
+            .WithMany(t => t.TermProposals)
+            .HasForeignKey(x => x.TripId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

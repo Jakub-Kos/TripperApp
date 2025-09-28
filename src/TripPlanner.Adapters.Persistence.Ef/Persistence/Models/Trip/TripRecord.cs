@@ -19,4 +19,7 @@ public sealed class TripRecord
     public List<ParticipantRecord> Participants { get; set; } = new();
     public List<DateOptionRecord> DateOptions { get; set; } = new();
     public ICollection<DestinationRecord> Destinations { get; set; } = new List<DestinationRecord>();
+
+    // New: list of proposed terms (start/end date pairs)
+    public List<TermProposalRecord> TermProposals { get; set; } = new();
 }
