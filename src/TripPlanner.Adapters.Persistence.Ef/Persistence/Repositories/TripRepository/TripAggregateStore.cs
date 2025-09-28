@@ -51,6 +51,9 @@ internal sealed class TripAggregateStore
             .Where(d => d.TripId == trip.Id.Value)
             .ToListAsync(ct);
 
+        // Preserve creator metadata by DestinationId
+        var meta = existing.ToDictionary(d => d.DestinationId, d => new { d.CreatedByUserId, d.CreatedAt });
+
         _db.Destinations.RemoveRange(existing);
 
         // Build a map of UserId -> ParticipantId for this trip (only claimed participants)
@@ -58,17 +61,23 @@ internal sealed class TripAggregateStore
             .Where(p => p.TripId == trip.Id.Value && p.UserId != null)
             .ToDictionaryAsync(p => p.UserId!.Value, p => p.ParticipantId, ct);
 
-        var newRecs = trip.DestinationProposals.Select(p => new DestinationRecord
+        var newRecs = trip.DestinationProposals.Select(p =>
         {
-            DestinationId = p.Id.Value,
-            TripId = trip.Id.Value,
-            Title = p.Title,
-            Description = p.Description,
-            Images = p.ImageUrls.Select(u => new DestinationImageRecord { Url = u }).ToList(),
-            Votes = p.VotesBy
-                .Where(v => participantMap.ContainsKey(v.Value))
-                .Select(v => new DestinationVoteRecord { ParticipantId = participantMap[v.Value], UserId = v.Value })
-                .ToList()
+            meta.TryGetValue(p.Id.Value, out var m);
+            return new DestinationRecord
+            {
+                DestinationId = p.Id.Value,
+                TripId = trip.Id.Value,
+                Title = p.Title,
+                Description = p.Description,
+                CreatedByUserId = m?.CreatedByUserId ?? Guid.Empty,
+                CreatedAt = m?.CreatedAt ?? default,
+                Images = p.ImageUrls.Select(u => new DestinationImageRecord { Url = u }).ToList(),
+                Votes = p.VotesBy
+                    .Where(v => participantMap.ContainsKey(v.Value))
+                    .Select(v => new DestinationVoteRecord { ParticipantId = participantMap[v.Value], UserId = v.Value })
+                    .ToList()
+            };
         });
 
         await _db.Destinations.AddRangeAsync(newRecs, ct);

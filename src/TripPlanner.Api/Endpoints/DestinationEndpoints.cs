@@ -79,14 +79,64 @@ public static class DestinationEndpoints
             .Produces<IReadOnlyList<DestinationProposalDto>>(StatusCodes.Status200OK)
             .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
 
-        v1.MapPost("/trips/{tripId}/destinations",
-                async (string tripId, ProposeDestinationRequest req, ProposeDestinationHandler handler, CancellationToken ct) =>
+        // GET destination detail including images and voters
+        v1.MapGet("/trips/{tripId:guid}/destinations/{destinationId:guid}",
+                async (Guid tripId, Guid destinationId, AppDbContext db, CancellationToken ct) =>
                 {
+                    var dest = await db.Destinations
+                        .AsNoTracking()
+                        .Include(d => d.Images)
+                        .Include(d => d.Votes)
+                        .FirstOrDefaultAsync(d => d.TripId == tripId && d.DestinationId == destinationId, ct);
+                    if (dest is null)
+                        return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip or destination not found"));
+
+                    var dto = new
+                    {
+                        destinationId = dest.DestinationId,
+                        title = dest.Title,
+                        description = dest.Description,
+                        imageUrls = dest.Images.Select(i => i.Url).ToArray(),
+                        createdByUserId = dest.CreatedByUserId,
+                        createdAt = dest.CreatedAt,
+                        voters = dest.Votes.OrderBy(v => v.ParticipantId).Select(v => v.ParticipantId.ToString("D")).ToArray(),
+                        votesCount = dest.Votes.Count
+                    };
+                    return Results.Ok(dto);
+                })
+            .WithTags("Destinations")
+            .WithSummary("Get destination proposal detail")
+            .WithDescription("Returns destination detail including image URLs and participantIds of voters.")
+            .Produces(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+
+        v1.MapPost("/trips/{tripId}/destinations",
+                async (string tripId, ProposeDestinationRequest req, System.Security.Claims.ClaimsPrincipal user, ProposeDestinationHandler handler, AppDbContext db, CancellationToken ct) =>
+                {
+                    var sub = user.FindFirst("sub")?.Value ?? user.FindFirst("nameid")?.Value;
+                    if (!Guid.TryParse(sub, out var me)) return Results.Unauthorized();
+
                     var id = await handler.Handle(new ProposeDestinationCommand(tripId, req.Title, req.Description, req.ImageUrls), ct);
-                    return id is null
-                        ? Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip not found"))
-                        : Results.Created($"/api/v1/trips/{tripId}/destinations/{id.Value.Value:D}",
-                            new { destinationId = id.Value.Value.ToString("D") });
+                    if (id is null)
+                        return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip not found"));
+
+                    // Set creator metadata if not set yet
+                    if (Guid.TryParse(tripId, out var tripGuid))
+                    {
+                        var dest = await db.Destinations.FirstOrDefaultAsync(d => d.TripId == tripGuid && d.DestinationId == id.Value.Value, ct);
+                        if (dest is not null)
+                        {
+                            // Only set on first creation
+                            if (dest.CreatedByUserId == Guid.Empty || dest.CreatedAt == default)
+                            {
+                                dest.CreatedByUserId = me;
+                                dest.CreatedAt = DateTimeOffset.UtcNow;
+                                await db.SaveChangesAsync(ct);
+                            }
+                        }
+                    }
+
+                    return Results.Created($"/api/v1/trips/{tripId}/destinations/{id.Value.Value:D}", new { destinationId = id.Value.Value.ToString("D") });
                 })
             .AddEndpointFilter(new ValidationFilter<ProposeDestinationRequest>())
             .WithTags("Destinations")
@@ -210,6 +260,34 @@ public static class DestinationEndpoints
             .WithDescription("Returns the images (id and url) stored for a destination proposal.")
             .Produces(StatusCodes.Status200OK)
             .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+
+        // Delete a destination proposal (creator or organizer)
+        v1.MapDelete("/trips/{tripId:guid}/destinations/{destinationId:guid}",
+                async (Guid tripId, Guid destinationId, AppDbContext db, System.Security.Claims.ClaimsPrincipal user, CancellationToken ct) =>
+                {
+                    var sub = user.FindFirst("sub")?.Value ?? user.FindFirst("nameid")?.Value;
+                    if (!Guid.TryParse(sub, out var me)) return Results.Unauthorized();
+
+                    var dest = await db.Destinations
+                        .Include(d => d.Trip)
+                        .FirstOrDefaultAsync(d => d.TripId == tripId && d.DestinationId == destinationId, ct);
+                    if (dest is null)
+                        return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip or destination not found"));
+
+                    if (dest.CreatedByUserId != me && dest.Trip.OrganizerId != me)
+                        return Results.Forbid();
+
+                    db.Destinations.Remove(dest);
+                    await db.SaveChangesAsync(ct);
+                    return Results.NoContent();
+                })
+            .WithTags("Destinations")
+            .WithSummary("Delete a destination proposal")
+            .WithDescription("Deletes a destination proposal. Only the creator or the trip organizer can delete it.")
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status403Forbidden)
+            .Produces(StatusCodes.Status401Unauthorized);
 
         // Delete a specific image (organizer only); idempotent
         v1.MapDelete("/trips/{tripId:guid}/destinations/{destinationId:guid}/images/{imageId:int}",

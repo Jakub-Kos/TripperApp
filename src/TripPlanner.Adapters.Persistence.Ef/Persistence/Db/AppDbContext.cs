@@ -174,6 +174,8 @@ public sealed class AppDbContext : DbContext
         e.Property(x => x.TripId).IsRequired();
         e.Property(x => x.Title).IsRequired().HasMaxLength(256);
         e.Property(x => x.Description).HasDefaultValue(string.Empty);
+        e.Property(x => x.CreatedByUserId).IsRequired();
+        e.Property(x => x.CreatedAt).IsRequired();
 
         e.HasMany(x => x.Images)
             .WithOne()
