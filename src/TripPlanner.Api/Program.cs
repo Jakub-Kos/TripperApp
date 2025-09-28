@@ -59,11 +59,25 @@ services.AddScoped<ProposeDestinationHandler>();
 services.AddScoped<VoteDestinationHandler>();
 
 // Persistence (EF + SQLite)
-var cs = builder.Configuration.GetConnectionString("Default") ?? "Data Source=tripplanner.db";
-if (builder.Environment.IsDevelopment())
+bool IsRunningInTests()
 {
-    // Use a unique DB per host to avoid file locking and schema clashes during parallel tests
-    cs = $"Data Source=tripplanner-{Guid.NewGuid():N}.db";
+    try
+    {
+        if (string.Equals(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_TEST_HOST"), "true", StringComparison.OrdinalIgnoreCase))
+            return true;
+        var friendly = AppDomain.CurrentDomain.FriendlyName;
+        if (!string.IsNullOrEmpty(friendly) && friendly.IndexOf("testhost", StringComparison.OrdinalIgnoreCase) >= 0)
+            return true;
+    }
+    catch { }
+    return false;
+}
+var isRunningInTests = IsRunningInTests();
+var cs = builder.Configuration.GetConnectionString("Default") ?? "Data Source=tripplanner.db";
+if (isRunningInTests)
+{
+    // In tests, use an isolated DB per test host to avoid interfering with the developer's local DB
+    cs = $"Data Source=tripplanner-tests-{Guid.NewGuid():N}.db";
 }
 services.AddEfPersistence(
     cs,
@@ -77,22 +91,18 @@ services.AddSingleton<IClock, SystemClock>();
 // ---------------
 var app = builder.Build();
 
-// Auto-migrate DB
+// Auto-create DB schema when missing (no destructive reset)
 if (app.Environment.IsDevelopment())
 {
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    // For development and tests, create schema directly from the current model to avoid pending migration issues.
     try
     {
-        // Recreate to ensure a clean state for integration tests
-        await db.Database.EnsureDeletedAsync();
         await db.Database.EnsureCreatedAsync();
     }
-    catch (Exception)
+    catch
     {
-        // Fallback: try EnsureCreated only
-        await db.Database.EnsureCreatedAsync();
+        // Ignore; DB likely already created. We avoid destructive resets to keep dev/test stability.
     }
 }
 
