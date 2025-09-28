@@ -166,9 +166,38 @@ public static class TripsEndpoints
             .Produces(StatusCodes.Status204NoContent)
             .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
             .Produces(StatusCodes.Status403Forbidden);
+
+        // Update trip name
+        v1.MapPatch("/trips/{tripId:guid}",
+                async (Guid tripId, AppDbContext db, System.Security.Claims.ClaimsPrincipal user, UpdateTripNameRequest req, CancellationToken ct) =>
+                {
+                    var sub = user.FindFirst("sub")?.Value ?? user.FindFirst("nameid")?.Value;
+                    if (!Guid.TryParse(sub, out var me)) return Results.Unauthorized();
+
+                    if (req is null || string.IsNullOrWhiteSpace(req.Name))
+                        return Results.BadRequest(new ErrorResponse(ErrorCodes.Validation, "Name must not be empty"));
+
+                    var trip = await db.Trips.FirstOrDefaultAsync(t => t.TripId == tripId, ct);
+                    if (trip is null) return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip not found"));
+
+                    if (trip.OrganizerId != me) return Results.Forbid();
+
+                    trip.Name = req.Name.Trim();
+                    await db.SaveChangesAsync(ct);
+                    return Results.NoContent();
+                })
+            .WithTags("Trips")
+            .WithSummary("Rename a trip")
+            .WithDescription("Organizer can update the trip's name.")
+            .Accepts<UpdateTripNameRequest>("application/json")
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status403Forbidden);
         
         return v1;
     }
 
     public sealed record UpdateTripDescriptionRequest(string? Description);
+    public sealed record UpdateTripNameRequest(string Name);
 }
