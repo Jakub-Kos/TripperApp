@@ -19,8 +19,9 @@ public static class InvitesEndpoints
                     var sub = user.FindFirst("sub")?.Value ?? user.FindFirst("nameid")?.Value;
                     if (!Guid.TryParse(sub, out var me)) return Results.Unauthorized();
 
-                    var exists = await db.Trips.AnyAsync(t => t.TripId == tripId, ct);
-                    if (!exists) return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip not found"));
+                    var organizerId = await db.Trips.Where(t => t.TripId == tripId).Select(t => t.OrganizerId).FirstOrDefaultAsync(ct);
+                    if (organizerId == Guid.Empty) return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip not found"));
+                    if (organizerId != me) return Results.Forbid();
 
                     var code = CodeUtils.GenerateFriendlyCode(10);
                     var hash = CodeUtils.Hash(code);

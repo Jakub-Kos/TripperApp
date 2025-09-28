@@ -16,15 +16,28 @@ public static class ParticipantsEndpoints
     public static IEndpointRouteBuilder MapParticipantsEndpoints(this IEndpointRouteBuilder v1)
     {
         // List participants (including placeholders)
-        v1.MapGet("/trips/{tripId:guid}/participants", async (Guid tripId, AppDbContext db, CancellationToken ct) =>
+        v1.MapGet("/trips/{tripId:guid}/participants", async (Guid tripId, AppDbContext db, System.Security.Claims.ClaimsPrincipal user, CancellationToken ct) =>
             {
-                var trip = await db.Trips.Include(t => t.Participants).FirstOrDefaultAsync(t => t.TripId == tripId, ct);
+                var sub = user.FindFirst("sub")?.Value ?? user.FindFirst("nameid")?.Value;
+                Guid.TryParse(sub, out var me);
+
+                var trip = await db.Trips
+                    .Include(t => t.Participants)
+                        .ThenInclude(p => p.User)
+                    .FirstOrDefaultAsync(t => t.TripId == tripId, ct);
                 if (trip is null) return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip not found"));
-                var list = trip.Participants.Select(p => new TripPlanner.Core.Contracts.Contracts.Common.Participants.ParticipantDto(
-                                    p.ParticipantId.ToString(),
-                                    p.DisplayName,
-                                    p.IsPlaceholder,
-                                    p.UserId ?? Guid.Empty)).ToList();
+
+                var organizerId = trip.OrganizerId;
+                var list = trip.Participants.Select(p => new TripPlanner.Core.Contracts.Contracts.Common.Participants.ParticipantInfoDto
+                {
+                    ParticipantId = p.ParticipantId.ToString(),
+                    DisplayName = p.DisplayName,
+                    IsPlaceholder = p.IsPlaceholder,
+                    IsOrganizer = p.UserId != null && p.UserId == organizerId,
+                    IsMe = p.UserId != null && me != Guid.Empty && p.UserId == me,
+                    UserId = p.UserId?.ToString(),
+                    Username = p.User?.Email
+                }).ToList();
                 return Results.Ok(list);
             })
             .WithTags("Participants")
@@ -33,7 +46,7 @@ public static class ParticipantsEndpoints
             .Produces(StatusCodes.Status200OK)
             .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
 
-        // Update displayName of a placeholder participant
+        // Update displayName of a placeholder participant (organizer only)
         v1.MapPatch("/trips/{tripId:guid}/participants/{participantId:guid}", async (Guid tripId, Guid participantId, UpdateParticipantDisplayNameRequest req, AppDbContext db, System.Security.Claims.ClaimsPrincipal user, CancellationToken ct) =>
             {
                 var sub = user.FindFirst("sub")?.Value ?? user.FindFirst("nameid")?.Value;
@@ -46,10 +59,8 @@ public static class ParticipantsEndpoints
                 if (!participant.IsPlaceholder || participant.UserId != null)
                     return Results.BadRequest("Only placeholders can be renamed via this endpoint.");
 
-                // must be a participant or the organizer to edit placeholders
-                var isTripMember = await db.Participants.AnyAsync(p => p.TripId == tripId && p.UserId == me, ct);
                 var organizerId = await db.Trips.Where(t => t.TripId == tripId).Select(t => t.OrganizerId).FirstOrDefaultAsync(ct);
-                if (!isTripMember && organizerId != me) return Results.Forbid();
+                if (organizerId != me) return Results.Forbid();
 
                 participant.DisplayName = display;
                 await db.SaveChangesAsync(ct);
@@ -133,6 +144,10 @@ public static class ParticipantsEndpoints
                     var sub = user.FindFirst("sub")?.Value ?? user.FindFirst("nameid")?.Value;
                     if (!Guid.TryParse(sub, out var me)) return Results.Unauthorized();
 
+                    var organizerId = await db.Trips.Where(t => t.TripId == tripId).Select(t => t.OrganizerId).FirstOrDefaultAsync(ct);
+                    if (organizerId == Guid.Empty) return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip not found"));
+                    if (organizerId != me) return Results.Forbid();
+
                     var placeholder = await db.Participants
                         .FirstOrDefaultAsync(p => p.TripId == tripId && p.ParticipantId == participantId && p.UserId == null, ct);
 
@@ -187,48 +202,19 @@ public static class ParticipantsEndpoints
 
                 if (placeholder is null) return Results.BadRequest("Placeholder no longer exists.");
 
-                // If the caller already has a participant in this trip, merge votes into the placeholder participant (keep its ParticipantId).
                 var existingForUser = await db.Participants
                     .FirstOrDefaultAsync(p => p.TripId == claim.TripId && p.UserId == me, ct);
+
+                if (existingForUser is not null && existingForUser.ParticipantId != placeholder.ParticipantId)
+                {
+                    return Results.BadRequest("You already have a participant in this trip. Cannot claim another.");
+                }
 
                 placeholder.UserId = me;
                 placeholder.IsPlaceholder = false;
                 placeholder.ClaimedAt = now;
                 if (!string.IsNullOrWhiteSpace(req.DisplayName))
                     placeholder.DisplayName = req.DisplayName.Trim();
-
-                if (existingForUser is not null && existingForUser.ParticipantId != placeholder.ParticipantId)
-                {
-                    await db.Database.BeginTransactionAsync(ct);
-
-                    var existingDateVotes = await db.DateVotes
-                        .Where(v => v.ParticipantId == existingForUser.ParticipantId)
-                        .ToListAsync(ct);
-
-                    foreach (var v in existingDateVotes)
-                    {
-                        var dup = await db.DateVotes.AnyAsync(d =>
-                            d.DateOptionId == v.DateOptionId && d.ParticipantId == placeholder.ParticipantId, ct);
-                        if (!dup) { v.ParticipantId = placeholder.ParticipantId; db.DateVotes.Update(v); }
-                        else { db.DateVotes.Remove(v); }
-                    }
-
-                    var existingDestVotes = await db.DestinationVotes
-                        .Where(v => v.ParticipantId == existingForUser.ParticipantId)
-                        .ToListAsync(ct);
-
-                    foreach (var v in existingDestVotes)
-                    {
-                        var dup = await db.DestinationVotes.AnyAsync(d =>
-                            d.DestinationId == v.DestinationId && d.ParticipantId == placeholder.ParticipantId, ct);
-                        if (!dup) { v.ParticipantId = placeholder.ParticipantId; db.DestinationVotes.Update(v); }
-                        else { db.DestinationVotes.Remove(v); }
-                    }
-
-                    db.Participants.Remove(existingForUser);
-                    await db.SaveChangesAsync(ct);
-                    await db.Database.CommitTransactionAsync(ct);
-                }
 
                 claim.RevokedAt = now; // one-time
                 await db.SaveChangesAsync(ct);

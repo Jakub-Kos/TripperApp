@@ -232,7 +232,7 @@ internal sealed class TripWriter
         return (rec.ClaimId, code, expiresAt);
     }
 
-    /// <summary>Claim a placeholder using a claim code. If caller already has a participant in the trip, merge into the placeholder.</summary>
+    /// <summary>Claim a placeholder using a claim code. Does not merge with any existing participant; if user already has a participant, fails.</summary>
     public async Task<bool> ClaimPlaceholderAsync(string claimCode, Guid callerUserId, string? displayNameOverride, CancellationToken ct)
     {
         var norm = NormalizeCode(claimCode);
@@ -253,6 +253,12 @@ internal sealed class TripWriter
         var existingForUser = await _db.Participants
             .FirstOrDefaultAsync(p => p.TripId == claim.TripId && p.UserId == callerUserId, ct);
 
+        if (existingForUser is not null && existingForUser.ParticipantId != placeholder.ParticipantId)
+        {
+            // Do not merge; disallow multiple participants for the same user via claim.
+            return false;
+        }
+
         placeholder.UserId = callerUserId;
         placeholder.IsPlaceholder = false;
         placeholder.ClaimedAt = now;
@@ -260,53 +266,6 @@ internal sealed class TripWriter
             placeholder.DisplayName = displayNameOverride!.Trim();
         else
             placeholder.DisplayName = await GetUserDisplayNameOrFallback(callerUserId, ct);
-
-        if (existingForUser is not null && existingForUser.ParticipantId != placeholder.ParticipantId)
-        {
-            // Merge votes into placeholder (keep placeholder.ParticipantId stable)
-            await _db.Database.BeginTransactionAsync(ct);
-
-            var existingDateVotes = await _db.DateVotes
-                .Where(v => v.ParticipantId == existingForUser.ParticipantId)
-                .ToListAsync(ct);
-
-            foreach (var v in existingDateVotes)
-            {
-                var dup = await _db.DateVotes.AnyAsync(d => d.DateOptionId == v.DateOptionId && d.ParticipantId == placeholder.ParticipantId, ct);
-                if (!dup)
-                {
-                    v.ParticipantId = placeholder.ParticipantId;
-                    _db.DateVotes.Update(v);
-                }
-                else
-                {
-                    _db.DateVotes.Remove(v);
-                }
-            }
-
-            var existingDestVotes = await _db.DestinationVotes
-                .Where(v => v.ParticipantId == existingForUser.ParticipantId)
-                .ToListAsync(ct);
-
-            foreach (var v in existingDestVotes)
-            {
-                var dup = await _db.DestinationVotes.AnyAsync(d => d.DestinationId == v.DestinationId && d.ParticipantId == placeholder.ParticipantId, ct);
-                if (!dup)
-                {
-                    v.ParticipantId = placeholder.ParticipantId;
-                    _db.DestinationVotes.Update(v);
-                }
-                else
-                {
-                    _db.DestinationVotes.Remove(v);
-                }
-            }
-
-            _db.Participants.Remove(existingForUser);
-
-            await _db.SaveChangesAsync(ct);
-            await _db.Database.CommitTransactionAsync(ct);
-        }
 
         claim.RevokedAt = now; // one-time
         await _db.SaveChangesAsync(ct);
