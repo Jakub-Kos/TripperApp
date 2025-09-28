@@ -98,6 +98,97 @@ public static class DestinationEndpoints
             .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
             .Produces<ErrorResponse>(StatusCodes.Status400BadRequest);
         
+        // Upload images to a destination proposal (png/jpeg), max 10 per destination
+        v1.MapPost("/trips/{tripId:guid}/destinations/{destinationId:guid}/images",
+                async (Guid tripId,
+                       Guid destinationId,
+                       HttpRequest request,
+                       IWebHostEnvironment env,
+                       AppDbContext db,
+                       CancellationToken ct) =>
+                {
+                    // Validate trip and destination
+                    var dest = await db.Destinations.Include(d => d.Images)
+                        .FirstOrDefaultAsync(d => d.TripId == tripId && d.DestinationId == destinationId, ct);
+                    if (dest is null)
+                        return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip or destination not found"));
+
+                    if (!request.HasFormContentType)
+                        return Results.BadRequest("Expected multipart/form-data with files.");
+
+                    var form = await request.ReadFormAsync(ct);
+                    var files = form.Files;
+                    if (files is null || files.Count == 0)
+                        return Results.BadRequest("No files uploaded.");
+
+                    // Allowed content types
+                    var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "image/jpeg", "image/png" };
+
+                    // Enforce limit: total images per destination <= 10
+                    var existingCount = dest.Images.Count;
+                    if (existingCount >= 10)
+                        return Results.BadRequest("This destination already has the maximum of 10 images.");
+
+                    var toProcess = files.Count;
+                    if (existingCount + toProcess > 10)
+                        return Results.BadRequest($"Too many images. You can upload at most {10 - existingCount} more.");
+
+                    // Ensure destination folder exists
+                    var root = env.WebRootPath ?? Path.Combine(AppContext.BaseDirectory, "wwwroot");
+                    var relativeDir = Path.Combine("uploads", "destinations", destinationId.ToString("D"));
+                    var absDir = Path.Combine(root, relativeDir);
+                    Directory.CreateDirectory(absDir);
+
+                    var savedUrls = new List<string>();
+
+                    foreach (var file in files)
+                    {
+                        if (file.Length == 0) continue;
+                        if (!allowed.Contains(file.ContentType))
+                            return Results.BadRequest("Unsupported file type. Only image/jpeg and image/png are allowed.");
+
+                        var ext = Path.GetExtension(file.FileName);
+                        // Normalize extension by content type if missing or odd
+                        if (string.IsNullOrWhiteSpace(ext) || ext.Length > 5)
+                            ext = file.ContentType.Equals("image/png", StringComparison.OrdinalIgnoreCase) ? ".png" : ".jpg";
+                        else
+                        {
+                            // Sanitize to .png/.jpg
+                            var lower = ext.ToLowerInvariant();
+                            if (lower is not (".png" or ".jpg" or ".jpeg"))
+                                ext = file.ContentType.Equals("image/png", StringComparison.OrdinalIgnoreCase) ? ".png" : ".jpg";
+                            else if (lower == ".jpeg") ext = ".jpg";
+                        }
+
+                        var name = $"{Guid.NewGuid():N}{ext}";
+                        var absPath = Path.Combine(absDir, name);
+                        await using (var stream = new FileStream(absPath, FileMode.CreateNew, FileAccess.Write))
+                        {
+                            await file.CopyToAsync(stream, ct);
+                        }
+
+                        var urlPath = "/" + Path.Combine(relativeDir, name).Replace('\\', '/');
+                        // Persist DB record
+                        db.DestinationImages.Add(new DestinationImageRecord
+                        {
+                            DestinationId = destinationId,
+                            Url = urlPath
+                        });
+                        savedUrls.Add(urlPath);
+                    }
+
+                    await db.SaveChangesAsync(ct);
+
+                    return Results.Created($"/api/v1/trips/{tripId}/destinations/{destinationId}/images", new { urls = savedUrls });
+                })
+            .WithTags("Destinations")
+            .WithSummary("Upload images for a destination proposal")
+            .WithDescription("Accepts multipart/form-data with PNG/JPEG files. Up to 10 images per destination proposal. Returns URLs of stored images.")
+            .Accepts<IFormFile>("multipart/form-data")
+            .Produces(StatusCodes.Status201Created)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status400BadRequest);
+        
         return v1;
     }
 }

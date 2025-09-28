@@ -106,6 +106,9 @@ app.UseSwaggerUI(c =>
     c.RoutePrefix = "swagger";
 });
 
+// Serve static files from wwwroot (for uploaded images)
+app.UseStaticFiles();
+
 // Auth pipeline – order matters
 app.UseAuthentication();
 app.UseAuthorization();
