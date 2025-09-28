@@ -11,7 +11,7 @@ public sealed record TripSummaryDto(
     bool IsFinished,
     IReadOnlyList<string> Participants);
 
-public sealed record DateOptionDto(string DateOptionId, string Date, int VotesCount);
+public sealed record DateOptionDto(string DateOptionId, string Date, int VotesCount, bool IsChosen);
 
 // Requests
 public sealed record ProposeDateRequest(string Date);             // "YYYY-MM-DD"

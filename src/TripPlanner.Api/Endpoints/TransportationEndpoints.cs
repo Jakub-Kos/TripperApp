@@ -54,6 +54,7 @@ public static class TransportationEndpoints
                         description = t.Description,
                         createdByUserId = t.CreatedByUserId,
                         createdAt = t.CreatedAt,
+                        isChosen = t.IsChosen,
                         routes = t.Routes.Select(r => new { r.Id, r.Url, r.ContentType, r.FileName, r.UploadedAt }).ToArray(),
                         documents = t.Documents.Select(d => new { d.Id, d.Url, d.ContentType, d.FileName, d.UploadedAt }).ToArray()
                     })
@@ -89,6 +90,7 @@ public static class TransportationEndpoints
                     description = t.Description,
                     createdByUserId = t.CreatedByUserId,
                     createdAt = t.CreatedAt,
+                    isChosen = t.IsChosen,
                     routes = t.Routes.Select(r => new { r.Id, r.Url, r.ContentType, r.FileName, r.UploadedAt }).ToArray(),
                     documents = t.Documents.Select(d => new { d.Id, d.Url, d.ContentType, d.FileName, d.UploadedAt }).ToArray()
                 });
@@ -113,6 +115,32 @@ public static class TransportationEndpoints
             .Accepts<UpdateTransportationRequest>("application/json")
             .Produces(StatusCodes.Status204NoContent)
             .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+
+        // Choose transportation (organizer only)
+        v1.MapPatch("/trips/{tripId:guid}/transportations/{transportationId:guid}/choose", async (Guid tripId, Guid transportationId, System.Security.Claims.ClaimsPrincipal user, AppDbContext db, CancellationToken ct) =>
+            {
+                var sub = user.FindFirst("sub")?.Value ?? user.FindFirst("nameid")?.Value;
+                if (!Guid.TryParse(sub, out var me)) return Results.Unauthorized();
+
+                var trip = await db.Trips.FirstOrDefaultAsync(t => t.TripId == tripId, ct);
+                if (trip is null) return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip not found"));
+                if (trip.OrganizerId != me) return Results.Forbid();
+
+                var target = await db.Transportations.FirstOrDefaultAsync(x => x.TripId == tripId && x.TransportationId == transportationId, ct);
+                if (target is null) return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip or transportation not found"));
+
+                var all = await db.Transportations.Where(x => x.TripId == tripId).ToListAsync(ct);
+                foreach (var t in all)
+                    t.IsChosen = t.TransportationId == transportationId;
+                await db.SaveChangesAsync(ct);
+                return Results.NoContent();
+            })
+            .WithTags("Transportations")
+            .WithSummary("Choose transportation (exclusive)")
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status403Forbidden)
+            .Produces(StatusCodes.Status401Unauthorized);
 
         // Delete
         v1.MapDelete("/trips/{tripId:guid}/transportations/{transportationId:guid}", async (Guid tripId, Guid transportationId, AppDbContext db, CancellationToken ct) =>

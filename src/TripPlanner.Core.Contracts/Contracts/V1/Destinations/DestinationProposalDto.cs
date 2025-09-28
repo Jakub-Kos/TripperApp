@@ -5,5 +5,6 @@ public sealed record DestinationProposalDto(
     string Title,
     string? Description,
     string[] ImageUrls,
-    int Votes
+    int Votes,
+    bool IsChosen
 );

@@ -81,8 +81,8 @@ public sealed class Trip
         string name, 
         UserId organizerId,
         IEnumerable<UserId> participants,
-        IEnumerable<(DateOptionId optId, DateOnly date, IEnumerable<UserId> votes)> dateOptions,
-        IEnumerable<(DestinationId Id, string Title, string? Description, IEnumerable<string> ImageUrls, IEnumerable<UserId> Votes)> destinations,
+        IEnumerable<(DateOptionId optId, DateOnly date, IEnumerable<UserId> votes, bool isChosen)> dateOptions,
+        IEnumerable<(DestinationId Id, string Title, string? Description, IEnumerable<string> ImageUrls, IEnumerable<UserId> Votes, bool IsChosen)> destinations,
         DateOnly? startDate = null,
         DateOnly? endDate = null)
     {
@@ -97,9 +97,9 @@ public sealed class Trip
         // date options (+votes)
         if (dateOptions is not null)
         {
-            foreach (var (optId, date, votes) in dateOptions)
+            foreach (var (optId, date, votes, isChosen) in dateOptions)
             {
-                var opt = new DateOption(optId, date);
+                var opt = new DateOption(optId, date, isChosen);
                 if (votes is not null)
                 {
                     foreach (var v in votes)
@@ -112,9 +112,9 @@ public sealed class Trip
         // destinations (+images + votes)
         if (destinations is not null)
         {
-            foreach (var (destId, title, description, imageUrls, votes) in destinations)
+            foreach (var (destId, title, description, imageUrls, votes, isChosen) in destinations)
             {
-                var proposal = new DestinationProposal(destId, title, description, imageUrls ?? Array.Empty<string>());
+                var proposal = new DestinationProposal(destId, title, description, imageUrls ?? Array.Empty<string>(), isChosen);
 
                 if (votes is not null)
                 {

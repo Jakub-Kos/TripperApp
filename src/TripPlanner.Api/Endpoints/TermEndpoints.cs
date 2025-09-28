@@ -221,6 +221,7 @@ public static class TermEndpoints
                         end = t.EndIso,
                         createdByUserId = t.CreatedByUserId,
                         createdAt = t.CreatedAt,
+                        isChosen = t.IsChosen,
                         votesCount = t.Votes.Count
                     })
                     .ToListAsync(ct);
@@ -250,6 +251,32 @@ public static class TermEndpoints
             .WithDescription("Returns participantIds who voted for the given term proposal.")
             .Produces(StatusCodes.Status200OK)
             .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+        
+        // Choose term proposal (organizer only, exclusive)
+        v1.MapPatch("/trips/{tripId:guid}/term-proposals/{termId:guid}", async (Guid tripId, Guid termId, AppDbContext db, System.Security.Claims.ClaimsPrincipal user, CancellationToken ct) =>
+            {
+                var sub = user.FindFirst("sub")?.Value ?? user.FindFirst("nameid")?.Value;
+                if (!Guid.TryParse(sub, out var me)) return Results.Unauthorized();
+
+                var trip = await db.Trips.FirstOrDefaultAsync(t => t.TripId == tripId, ct);
+                if (trip is null) return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip not found"));
+                if (trip.OrganizerId != me) return Results.Forbid();
+
+                var target = await db.TermProposals.FirstOrDefaultAsync(t => t.TripId == tripId && t.TermProposalId == termId, ct);
+                if (target is null) return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Term proposal not found"));
+
+                var all = await db.TermProposals.Where(t => t.TripId == tripId).ToListAsync(ct);
+                foreach (var t in all)
+                    t.IsChosen = t.TermProposalId == termId;
+                await db.SaveChangesAsync(ct);
+                return Results.NoContent();
+            })
+            .WithTags("Dates")
+            .WithSummary("Choose a term proposal (exclusive)")
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status403Forbidden)
+            .Produces(StatusCodes.Status401Unauthorized);
         
         return v1;
     }

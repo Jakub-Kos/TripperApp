@@ -99,6 +99,7 @@ public static class DestinationEndpoints
                         imageUrls = dest.Images.Select(i => i.Url).ToArray(),
                         createdByUserId = dest.CreatedByUserId,
                         createdAt = dest.CreatedAt,
+                        isChosen = dest.IsChosen,
                         voters = dest.Votes.OrderBy(v => v.ParticipantId).Select(v => v.ParticipantId.ToString("D")).ToArray(),
                         votesCount = dest.Votes.Count
                     };
@@ -329,6 +330,32 @@ public static class DestinationEndpoints
             .WithTags("Destinations")
             .WithSummary("Delete an image from a destination proposal")
             .WithDescription("Organizer can delete a stored image by its id. Idempotent: returns 204 if already removed.")
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status403Forbidden)
+            .Produces(StatusCodes.Status401Unauthorized);
+        
+        // Choose destination (organizer only)
+        v1.MapPatch("/trips/{tripId:guid}/destinations/{destinationId:guid}/choose", async (Guid tripId, Guid destinationId, System.Security.Claims.ClaimsPrincipal user, AppDbContext db, CancellationToken ct) =>
+            {
+                var sub = user.FindFirst("sub")?.Value ?? user.FindFirst("nameid")?.Value;
+                if (!Guid.TryParse(sub, out var me)) return Results.Unauthorized();
+
+                var trip = await db.Trips.FirstOrDefaultAsync(t => t.TripId == tripId, ct);
+                if (trip is null) return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip not found"));
+                if (trip.OrganizerId != me) return Results.Forbid();
+
+                var target = await db.Destinations.FirstOrDefaultAsync(d => d.TripId == tripId && d.DestinationId == destinationId, ct);
+                if (target is null) return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip or destination not found"));
+
+                var all = await db.Destinations.Where(d => d.TripId == tripId).ToListAsync(ct);
+                foreach (var d in all)
+                    d.IsChosen = d.DestinationId == destinationId;
+                await db.SaveChangesAsync(ct);
+                return Results.NoContent();
+            })
+            .WithTags("Destinations")
+            .WithSummary("Choose destination (exclusive)")
             .Produces(StatusCodes.Status204NoContent)
             .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
             .Produces(StatusCodes.Status403Forbidden)

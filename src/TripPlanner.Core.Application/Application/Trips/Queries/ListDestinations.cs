@@ -23,7 +23,8 @@ public sealed class ListDestinationsHandler
                 p.Title,
                 p.Description,
                 p.ImageUrls.ToArray(),
-                p.Votes))
+                p.Votes,
+                p.IsChosen))
             .ToArray();
     }
 }

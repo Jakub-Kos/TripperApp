@@ -8,19 +8,22 @@ public sealed class DestinationProposal
     public string Title { get; }
     public string? Description { get; }
     public List<string> ImageUrls { get; } = new();
+    public bool IsChosen { get; private set; }
     private readonly HashSet<UserId> _votes = new();
 
     public int Votes => _votes.Count;
     public IReadOnlyCollection<UserId> VotesBy => _votes;
 
-    public DestinationProposal(DestinationId id, string title, string? description, IEnumerable<string>? imageUrls = null)
+    public DestinationProposal(DestinationId id, string title, string? description, IEnumerable<string>? imageUrls = null, bool isChosen = false)
     {
         if (string.IsNullOrWhiteSpace(title)) throw new ArgumentException("Title is required.", nameof(title));
         Id = id;
         Title = title.Trim();
         Description = string.IsNullOrWhiteSpace(description) ? null : description!.Trim();
         if (imageUrls is not null) ImageUrls.AddRange(imageUrls.Where(s => !string.IsNullOrWhiteSpace(s)));
+        IsChosen = isChosen;
     }
 
+    public void SetChosen(bool chosen) => IsChosen = chosen;
     public bool AddVote(UserId user) => _votes.Add(user);
 }

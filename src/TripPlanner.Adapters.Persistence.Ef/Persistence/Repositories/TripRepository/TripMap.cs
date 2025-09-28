@@ -20,7 +20,8 @@ internal static class TripMap
                 new DateOptionId(o.DateOptionId),
                 DateOnly.ParseExact(o.DateIso, "yyyy-MM-dd", CultureInfo.InvariantCulture),
                 // VOTES BY PARTICIPANT
-                o.Votes.Select(v => new UserId(v.ParticipantId))
+                o.Votes.Select(v => new UserId(v.ParticipantId)),
+                o.IsChosen
             ));
 
         var destinations = r.Destinations.Select(d =>
@@ -30,7 +31,8 @@ internal static class TripMap
                 d.Description,
                 d.Images.Select(i => i.Url),
                 // VOTES BY PARTICIPANT
-                d.Votes.Select(v => new UserId(v.ParticipantId))
+                d.Votes.Select(v => new UserId(v.ParticipantId)),
+                d.IsChosen
             ));
 
         return Trip.Rehydrate(
@@ -77,6 +79,7 @@ internal static class TripMap
                 DateOptionId = o.Id.Value,
                 TripId = trip.Id.Value,
                 DateIso = o.Date.ToString("yyyy-MM-dd"),
+                IsChosen = o.IsChosen,
                 // VOTES BY PARTICIPANT
                 Votes = o.Votes.Select(v => new DateVoteRecord
                 {
@@ -91,6 +94,7 @@ internal static class TripMap
                 TripId = trip.Id.Value,
                 Title = p.Title,
                 Description = p.Description,
+                IsChosen = p.IsChosen,
                 Images = p.ImageUrls.Select(u => new DestinationImageRecord { Url = u }).ToList(),
                 // VOTES BY PARTICIPANT
                 Votes = p.VotesBy.Select(v => new DestinationVoteRecord

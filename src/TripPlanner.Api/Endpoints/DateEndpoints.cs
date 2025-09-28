@@ -15,6 +15,7 @@ public static class DateEndpoints
     public record DateSelfVoteRequest(string Date); // YYYY-MM-DD
     public record DateProxyVoteRequest(string Date, string ParticipantId);
     public record SetDateRangeRequest(string Start, string End); // YYYY-MM-DD
+    public record ChooseDateRequest(string Date); // YYYY-MM-DD
     
     public static IEndpointRouteBuilder MapDateEndpoints(this IEndpointRouteBuilder v1)
     {
@@ -133,13 +134,6 @@ public static class DateEndpoints
             .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
             .Produces(StatusCodes.Status400BadRequest);
         
-        v1.MapPost("/trips/{tripId}/date-options",
-                () => Results.StatusCode(StatusCodes.Status410Gone))
-            .WithTags("Dates")
-            .WithName("ProposeDateOption")
-            .WithSummary("Deprecated: propose date option")
-            .WithDescription("Deprecated. Use PUT /trips/{tripId}/date-range and POST /trips/{tripId}/date-votes with a date instead.")
-            .Produces(StatusCodes.Status410Gone);
 
         // DELETE self vote for a specific date
         v1.MapDelete("/trips/{tripId:guid}/date-votes", async (Guid tripId, [FromBody] DateSelfVoteRequest req, AppDbContext db, System.Security.Claims.ClaimsPrincipal user, CancellationToken ct) =>
@@ -231,6 +225,7 @@ public static class DateEndpoints
                     .Select(o => new
                     {
                         date = o.DateIso,
+                        isChosen = o.IsChosen,
                         participantIds = o.Votes.OrderBy(v => v.ParticipantId).Select(v => v.ParticipantId.ToString("D")).ToList()
                     })
                     .OrderBy(x => x.date)
@@ -243,6 +238,7 @@ public static class DateEndpoints
             .WithDescription("Returns an array of { date, participantIds } representing votes for each date option.")
             .Produces(StatusCodes.Status200OK)
             .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+        
         
         return v1;
         }

@@ -156,6 +156,7 @@ public sealed class AppDbContext : DbContext
         
         e.Property(x => x.DateIso).IsRequired();
         e.Property(x => x.TripId).IsRequired();
+        e.Property(x => x.IsChosen).IsRequired().HasDefaultValue(false);
         
         e.HasMany(x => x.Votes)
             .WithOne() 
@@ -192,6 +193,7 @@ public sealed class AppDbContext : DbContext
         e.Property(x => x.Description).HasDefaultValue(string.Empty);
         e.Property(x => x.CreatedByUserId).IsRequired();
         e.Property(x => x.CreatedAt).IsRequired();
+        e.Property(x => x.IsChosen).IsRequired().HasDefaultValue(false);
 
         e.HasMany(x => x.Images)
             .WithOne()
@@ -284,6 +286,7 @@ public sealed class AppDbContext : DbContext
         e.Property(x => x.EndIso).IsRequired();
         e.Property(x => x.CreatedByUserId).IsRequired();
         e.Property(x => x.CreatedAt).IsRequired();
+        e.Property(x => x.IsChosen).IsRequired().HasDefaultValue(false);
 
         e.HasIndex(x => new { x.TripId, x.StartIso, x.EndIso });
 
@@ -316,6 +319,7 @@ public sealed class AppDbContext : DbContext
         e.Property(x => x.Description).HasDefaultValue(string.Empty);
         e.Property(x => x.CreatedByUserId).IsRequired();
         e.Property(x => x.CreatedAt).IsRequired();
+        e.Property(x => x.IsChosen).IsRequired().HasDefaultValue(false);
 
         e.HasMany(x => x.Routes)
             .WithOne()

@@ -10,6 +10,7 @@ public sealed class TransportationRecord
     public string? Description { get; set; }
     public Guid CreatedByUserId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
+    public bool IsChosen { get; set; }
 
     public ICollection<TransportationRouteRecord> Routes { get; set; } = new List<TransportationRouteRecord>();
     public ICollection<TransportationDocumentRecord> Documents { get; set; } = new List<TransportationDocumentRecord>();

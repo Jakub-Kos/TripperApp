@@ -15,6 +15,8 @@ public sealed class TermProposalRecord
     public Guid CreatedByUserId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 
+    public bool IsChosen { get; set; }
+
     public TripRecord Trip { get; set; } = null!;
     public List<TermProposalVoteRecord> Votes { get; set; } = new();
 }

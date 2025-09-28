@@ -56,9 +56,9 @@ public sealed class InMemoryTripRepository : ITripRepository, IUnitOfWork
 
         // Rehydrate a new aggregate with added participant
         var participants = trip.Participants.Append(userId);
-        var options = trip.DateOptions.Select(o => (o.Id, o.Date, (IEnumerable<UserId>)o.Votes));
+        var options = trip.DateOptions.Select(o => (o.Id, o.Date, (IEnumerable<UserId>)o.Votes, o.IsChosen));
         var destinations = trip.DestinationProposals.Select(p =>
-            (p.Id, p.Title, p.Description, (IEnumerable<string>)p.ImageUrls, (IEnumerable<UserId>)p.VotesBy));
+            (p.Id, p.Title, p.Description, (IEnumerable<string>)p.ImageUrls, (IEnumerable<UserId>)p.VotesBy, p.IsChosen));
 
         var updated = Trip.Rehydrate(trip.Id, trip.Name, trip.OrganizerId, participants, options, destinations);
         _store[tripId] = updated;
@@ -80,11 +80,11 @@ public sealed class InMemoryTripRepository : ITripRepository, IUnitOfWork
 
         var participants = trip.Participants;
         var options = trip.DateOptions
-            .Select(o => (o.Id, o.Date, (IEnumerable<UserId>)o.Votes))
-            .Append((id, date, Enumerable.Empty<UserId>()));
+            .Select(o => (o.Id, o.Date, (IEnumerable<UserId>)o.Votes, o.IsChosen))
+            .Append((id, date, Enumerable.Empty<UserId>(), false));
 
         var destinations = trip.DestinationProposals.Select(p =>
-            (p.Id, p.Title, p.Description, (IEnumerable<string>)p.ImageUrls, (IEnumerable<UserId>)p.VotesBy));
+            (p.Id, p.Title, p.Description, (IEnumerable<string>)p.ImageUrls, (IEnumerable<UserId>)p.VotesBy, p.IsChosen));
 
         var updated = Trip.Rehydrate(trip.Id, trip.Name, trip.OrganizerId, participants, options, destinations);
         _store[tripId] = updated;
@@ -112,13 +112,13 @@ public sealed class InMemoryTripRepository : ITripRepository, IUnitOfWork
             if (o.Id == dateOptionId)
             {
                 var newVotes = o.Votes.Append(userId);
-                return (o.Id, o.Date, (IEnumerable<UserId>)newVotes);
+                return (o.Id, o.Date, (IEnumerable<UserId>)newVotes, o.IsChosen);
             }
-            return (o.Id, o.Date, (IEnumerable<UserId>)o.Votes);
+            return (o.Id, o.Date, (IEnumerable<UserId>)o.Votes, o.IsChosen);
         });
 
         var destinations = trip.DestinationProposals.Select(p =>
-            (p.Id, p.Title, p.Description, (IEnumerable<string>)p.ImageUrls, (IEnumerable<UserId>)p.VotesBy));
+            (p.Id, p.Title, p.Description, (IEnumerable<string>)p.ImageUrls, (IEnumerable<UserId>)p.VotesBy, p.IsChosen));
 
         var updated = Trip.Rehydrate(trip.Id, trip.Name, trip.OrganizerId, participants, options, destinations);
         _store[tripId] = updated;
