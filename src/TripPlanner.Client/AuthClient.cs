@@ -22,10 +22,10 @@ public sealed class AuthClient(HttpClient http)
         return dto is null ? null : new RefreshResponse(dto.AccessToken, dto.RefreshToken, dto.ExpiresInSeconds);
     }
     
-    public async Task RegisterAsync(RegisterRequest req, CancellationToken ct = default)
+    public async Task<bool> RegisterAsync(RegisterRequest req, CancellationToken ct = default)
     {
-        var res = await http.PostAsJsonAsync("auth/register", req, ct);
-        res.EnsureSuccessStatusCode();
+        var res = await http.PostAsJsonAsync("/auth/register", req, ct);
+        return res.IsSuccessStatusCode;
     }
 
     public Task LogoutAsync(string refreshToken, CancellationToken ct = default) =>

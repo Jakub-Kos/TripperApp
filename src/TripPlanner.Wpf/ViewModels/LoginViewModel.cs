@@ -26,7 +26,19 @@ public sealed class LoginViewModel : INotifyPropertyChanged
     {
         try
         {
-            var resp = await _auth.LoginAsync(Email, password);
+            var email = (Email ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(email) || string.IsNullOrEmpty(password))
+            {
+                Error = "Please enter both email and password.";
+                return false;
+            }
+
+            var resp = await _auth.LoginAsync(email, password);
+            if (resp is null)
+            {
+                Error = "Sign in failed. Server unavailable or returned an error.";
+                return false;
+            }
             _state.SetTokens(resp.AccessToken, resp.ExpiresInSeconds, resp.RefreshToken);
             Error = "";
             return true;
@@ -38,11 +50,33 @@ public sealed class LoginViewModel : INotifyPropertyChanged
             return false;
         }
     }
-    public async Task RegisterAsync(string password)
+    public async Task<bool> RegisterAsync(string password)
     {
-        var req = new RegisterRequest(Email, password, "User");
-        // Reuse AuthClient: add a RegisterAsync in AuthClient
-        await _auth.RegisterAsync(req);
+        try
+        {
+            var email = (Email ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(email) || string.IsNullOrEmpty(password))
+            {
+                Error = "Please enter both email and password.";
+                return false;
+            }
+
+            var req = new RegisterRequest(email, password, "User");
+            var ok = await _auth.RegisterAsync(req);
+            if (!ok)
+            {
+                Error = "Registration failed. Please check your details and try again.";
+                return false;
+            }
+            Error = "";
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Error = "Registration failed.";
+            System.Diagnostics.Debug.WriteLine(ex);
+            return false;
+        }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

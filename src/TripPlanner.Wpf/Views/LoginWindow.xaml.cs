@@ -30,11 +30,22 @@ public partial class LoginWindow : Window
     {
         if (DataContext is LoginViewModel vm)
         {
+            var pwd = PasswordBox.Password ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(vm.Email) || string.IsNullOrEmpty(pwd))
+            {
+                MessageBox.Show("Please enter both email and password.", "Missing information");
+                return;
+            }
+
             ShowWorking("Signing in...");
             try
             {
-                var ok = await vm.SignInAsync(PasswordBox.Password);
+                var ok = await vm.SignInAsync(pwd);
                 if (ok) { DialogResult = true; Close(); }
+                else if (!string.IsNullOrWhiteSpace(vm.Error))
+                {
+                    MessageBox.Show(vm.Error, "Sign in failed");
+                }
             }
             finally
             {
@@ -47,14 +58,26 @@ public partial class LoginWindow : Window
     {
         if (DataContext is LoginViewModel vm)
         {
+            var pwd = PasswordBox.Password ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(vm.Email) || string.IsNullOrEmpty(pwd))
+            {
+                MessageBox.Show("Please enter both email and password.", "Missing information");
+                return;
+            }
+
             ShowWorking("Registering...");
             try
             {
-                await vm.RegisterAsync(PasswordBox.Password);
+                var registered = await vm.RegisterAsync(pwd);
+                if (!registered)
+                {
+                    MessageBox.Show(vm.Error?.Length > 0 ? vm.Error : "Registration failed. Please try again.", "Registration Error");
+                    return;
+                }
                 
                 // Auto-login after successful registration
                 ShowWorking("Logging in...");
-                var loginSuccess = await vm.SignInAsync(PasswordBox.Password);
+                var loginSuccess = await vm.SignInAsync(pwd);
                 if (loginSuccess)
                 {
                     DialogResult = true;
@@ -62,7 +85,7 @@ public partial class LoginWindow : Window
                 }
                 else
                 {
-                    MessageBox.Show("Registration successful, but auto-login failed. Please sign in manually.", "Registration Complete");
+                    MessageBox.Show(!string.IsNullOrWhiteSpace(vm.Error) ? vm.Error : "Registration successful, but auto-login failed. Please sign in manually.", "Registration Complete");
                 }
             }
             catch (Exception ex)

@@ -35,6 +35,8 @@ public sealed class AuthHttpMessageHandler : DelegatingHandler
             if (_state.AccessToken is null || response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
             {
                 var refreshed = await _auth.RefreshAsync(_state.RefreshToken!, ct);
+                if (refreshed is null)
+                    throw new InvalidOperationException("Token refresh failed.");
                 _state.SetTokens(refreshed.AccessToken, refreshed.ExpiresInSeconds, refreshed.RefreshToken);
             }
         }
@@ -48,10 +50,22 @@ public sealed class AuthHttpMessageHandler : DelegatingHandler
             _mutex.Release();
         }
 
-        // retry once with new token
-        var retry = request.Clone(); // extension below
-        await AttachAccessAsync(retry, ct);
-        return await base.SendAsync(retry, ct);
+        // retry once with new token ONLY for idempotent requests without content (avoid reusing disposed content streams)
+        if (request.Method == HttpMethod.Get || request.Method == HttpMethod.Head)
+        {
+            var retry = new HttpRequestMessage(request.Method, request.RequestUri);
+            // copy headers except Authorization (will be re-added)
+            foreach (var h in request.Headers)
+            {
+                if (string.Equals(h.Key, "Authorization", StringComparison.OrdinalIgnoreCase)) continue;
+                retry.Headers.TryAddWithoutValidation(h.Key, h.Value);
+            }
+            await AttachAccessAsync(retry, ct);
+            return await base.SendAsync(retry, ct);
+        }
+
+        // For non-idempotent or content-bearing requests, do not retry to avoid stream reuse issues
+        return response;
     }
 
     private Task AttachAccessAsync(HttpRequestMessage req, CancellationToken _)
@@ -59,26 +73,5 @@ public sealed class AuthHttpMessageHandler : DelegatingHandler
         if (!string.IsNullOrWhiteSpace(_state.AccessToken))
             req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _state.AccessToken);
         return Task.CompletedTask;
-    }
-}
-
-file static class HttpRequestMessageExtensions
-{
-    public static HttpRequestMessage Clone(this HttpRequestMessage req)
-    {
-        var clone = new HttpRequestMessage(req.Method, req.RequestUri);
-        // copy headers & content
-        foreach (var h in req.Headers)
-            clone.Headers.TryAddWithoutValidation(h.Key, h.Value);
-        if (req.Content is not null)
-        {
-            var ms = new MemoryStream();
-            req.Content.CopyTo(ms, null, CancellationToken.None);
-            ms.Position = 0;
-            clone.Content = new StreamContent(ms);
-            foreach (var h in req.Content.Headers)
-                clone.Content.Headers.TryAddWithoutValidation(h.Key, h.Value);
-        }
-        return clone;
     }
 }

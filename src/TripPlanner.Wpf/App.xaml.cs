@@ -47,6 +47,7 @@ public partial class App : Application
                 services.AddSingleton<ItineraryViewModel>();
                 services.AddSingleton<TransportationsViewModel>();
                 services.AddSingleton<InvitesViewModel>();
+                services.AddTransient<LoginViewModel>();
 
                 // Windows
                 services.AddSingleton<MainWindow>(sp =>
@@ -70,7 +71,10 @@ public partial class App : Application
             {
                 var auth = Host.Services.GetRequiredService<AuthClient>();
                 var r = await auth.RefreshAsync(state.RefreshToken!);
-                state.SetTokens(r.AccessToken, r.ExpiresInSeconds, r.RefreshToken);
+                if (r is not null)
+                {
+                    state.SetTokens(r.AccessToken, r.ExpiresInSeconds, r.RefreshToken);
+                }
             }
             catch { /* ignore */ }
         }
@@ -78,8 +82,17 @@ public partial class App : Application
         // Gate by login
         if (string.IsNullOrWhiteSpace(state.AccessToken))
         {
+            // Ensure the app doesn't shutdown when closing the login dialog (before MainWindow is shown)
+            var previousMode = this.ShutdownMode;
+            this.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+
             var login = Host.Services.GetRequiredService<LoginWindow>();
-            if (login.ShowDialog() != true)
+            var result = login.ShowDialog();
+
+            // Restore the shutdown mode regardless of dialog result
+            this.ShutdownMode = previousMode;
+
+            if (result != true)
             {
                 Shutdown();
                 return;
@@ -87,11 +100,13 @@ public partial class App : Application
         }
 
         // Initialize and show main window
-        var mainVm = Host.Services.GetRequiredService<MainViewModel>();
-        await mainVm.InitializeAsync();
-
         var main = Host.Services.GetRequiredService<MainWindow>();
+        this.MainWindow = main; // set explicitly to control shutdown behavior
         main.Show();
+
+        // Load data without blocking the UI startup
+        var mainVm = Host.Services.GetRequiredService<MainViewModel>();
+        _ = mainVm.InitializeAsync();
 
         base.OnStartup(e);
     }
