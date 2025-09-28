@@ -53,14 +53,21 @@
         <ComboBox Width="360" ItemsSource="{Binding Trips}" DisplayMemberPath="Name"
                   SelectedItem="{Binding SelectedTrip}" />
         <Button Content="Reload" Margin="8,0,0,0" Command="{Binding ReloadTripsCommand}"/>
+        <TextBox Width="200" Margin="8,0,0,0" Text="{Binding NewTripName, UpdateSourceTrigger=PropertyChanged}"
+                 GotFocus="NewTripTextBox_GotFocus" LostFocus="NewTripTextBox_LostFocus"/>
         <Button Content="New Trip" Margin="8,0,0,0" Command="{Binding CreateTripCommand}"/>
         <Button Content="Delete Trip" Margin="8,0,0,0" Command="{Binding DeleteTripCommand}">
           <Button.Style>
             <Style TargetType="Button">
               <Setter Property="IsEnabled" Value="True"/>
+              <Setter Property="ToolTip" Value="Delete current trip"/>
               <Style.Triggers>
                 <DataTrigger Binding="{Binding SelectedTrip}" Value="{x:Null}">
                   <Setter Property="IsEnabled" Value="False"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding CanDeleteTrip}" Value="False">
+                  <Setter Property="IsEnabled" Value="False"/>
+                  <Setter Property="ToolTip" Value="Trip deletion is not supported in this version."/>
                 </DataTrigger>
               </Style.Triggers>
             </Style>

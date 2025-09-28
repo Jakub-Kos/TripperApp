@@ -15,6 +15,28 @@ namespace TripPlanner.Wpf.Views
             Loaded += OnLoaded;
         }
 
+        private void NewTripTextBox_GotFocus(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is MainViewModel vm)
+            {
+                if (vm.NewTripName == MainViewModel.NewTripPlaceholder)
+                {
+                    vm.NewTripName = string.Empty;
+                }
+            }
+        }
+
+        private void NewTripTextBox_LostFocus(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is MainViewModel vm)
+            {
+                if (string.IsNullOrWhiteSpace(vm.NewTripName))
+                {
+                    vm.NewTripName = MainViewModel.NewTripPlaceholder;
+                }
+            }
+        }
+
         private async void OnLoaded(object sender, RoutedEventArgs e)
         {
             // Ensure DataContext is set and data is initialized even if window was not constructed via DI factory

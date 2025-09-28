@@ -38,6 +38,10 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _busy;
     [ObservableProperty] private string _status = "";
 
+    public const string NewTripPlaceholder = "Trip name...";
+    // Name for a new trip entered by the user in the toolbar (used also as simple placeholder)
+    [ObservableProperty] private string _newTripName = NewTripPlaceholder;
+
     public ObservableCollection<TripListItem> Trips { get; } = new();
 
     [ObservableProperty] private TripListItem? _selectedTrip;
@@ -67,25 +71,30 @@ public partial class MainViewModel : ObservableObject
         try
         {
             Busy = true; Status = "Creating trip...";
-            var created = await _client.CreateTripAsync(new CreateTripRequest("New Trip"));
+            var name = string.IsNullOrWhiteSpace(NewTripName) || NewTripName == NewTripPlaceholder ? "New Trip" : NewTripName.Trim();
+            var created = await _client.CreateTripAsync(new CreateTripRequest(name));
             await LoadTripsInternal(created.TripId);
+            // Reset the input to placeholder after creation
+            NewTripName = NewTripPlaceholder;
             Status = "Trip created.";
         }
         catch (Exception ex) { Status = ex.Message; }
         finally { Busy = false; }
     }
 
+    public bool CanDeleteTrip => true;
+
     [RelayCommand]
     private async Task DeleteTripAsync()
     {
         if (SelectedTrip is null) return;
+        var toDelete = SelectedTrip.TripId;
         try
         {
             Busy = true; Status = "Deleting trip...";
-            // Delete trip is not available in current API; skipping.
-            await Task.Delay(150);
+            var ok = await _client.DeleteTripAsync(toDelete);
             await LoadTripsInternal();
-            Status = "Delete not supported in this build.";
+            Status = ok ? "Trip deleted." : "Trip not found or already deleted.";
         }
         catch (Exception ex) { Status = ex.Message; }
         finally { Busy = false; }

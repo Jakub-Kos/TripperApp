@@ -49,6 +49,15 @@ public sealed class TripPlannerClient(HttpClient http) : ITripPlannerClient
         return await res.Content.ReadFromJsonAsync<TripSummaryDto>(cancellationToken: ct);
     }
 
+    public async Task<bool> DeleteTripAsync(string tripId, CancellationToken ct = default)
+    {
+        using var res = await http.DeleteAsync($"/api/v1/trips/{tripId}", ct);
+        if (res.StatusCode == HttpStatusCode.NoContent) return true;
+        if (res.StatusCode == HttpStatusCode.NotFound) return false;
+        await ThrowIfError(res, "Failed to delete trip.", ct);
+        return false;
+    }
+
     public async Task<bool> AddParticipantAsync(string tripId, AddParticipantRequest request, CancellationToken ct = default)
     {
         using var res = await http.PostAsJsonAsync($"/api/v1/trips/{tripId}/participants", request, ct);

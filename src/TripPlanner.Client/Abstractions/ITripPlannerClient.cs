@@ -18,6 +18,8 @@ public interface ITripPlannerClient
 
     Task<TripSummaryDto?> GetTripByIdAsync(string tripId, CancellationToken ct = default);
 
+    Task<bool> DeleteTripAsync(string tripId, CancellationToken ct = default);
+
     Task<bool> AddParticipantAsync(string tripId, AddParticipantRequest request, CancellationToken ct = default);
     // Date range and voting
     Task<bool> SetDateRangeAsync(string tripId, string startIso, string endIso, CancellationToken ct = default);
