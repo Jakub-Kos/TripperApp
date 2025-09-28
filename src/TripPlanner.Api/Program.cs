@@ -125,6 +125,7 @@ var v1 = app.MapGroup("/api/v1");
 v1.MapDateEndpoints();
 v1.MapTermEndpoints();
 v1.MapDestinationEndpoints();
+v1.MapTransportationEndpoints();
 v1.MapInvitesEndpoints();
 v1.MapParticipantsEndpoints();
 v1.MapTripsEndpoints();

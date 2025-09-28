@@ -1,5 +1,6 @@
 ﻿using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Date;
 using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Destination;
+using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Transportation;
 
 namespace TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Trip;
 
@@ -22,4 +23,7 @@ public sealed class TripRecord
 
     // New: list of proposed terms (start/end date pairs)
     public List<TermProposalRecord> TermProposals { get; set; } = new();
+
+    // New: transportation to the start of the trip
+    public ICollection<TransportationRecord> Transportations { get; set; } = new List<TransportationRecord>();
 }

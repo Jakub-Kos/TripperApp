@@ -3,6 +3,7 @@ using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Common;
 using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Date;
 using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Destination;
 using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Trip;
+using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Transportation;
 
 namespace TripPlanner.Adapters.Persistence.Ef.Persistence.Db;
 
@@ -21,6 +22,11 @@ public sealed class AppDbContext : DbContext
     public DbSet<RefreshTokenRecord> RefreshTokens => Set<RefreshTokenRecord>();
     public DbSet<TripInviteRecord> TripInvites => Set<TripInviteRecord>();           
     public DbSet<PlaceholderClaimRecord> PlaceholderClaims => Set<PlaceholderClaimRecord>();
+
+    // Transportation
+    public DbSet<TransportationRecord> Transportations => Set<TransportationRecord>();
+    public DbSet<TransportationRouteRecord> TransportationRoutes => Set<TransportationRouteRecord>();
+    public DbSet<TransportationDocumentRecord> TransportationDocuments => Set<TransportationDocumentRecord>();
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -44,6 +50,11 @@ public sealed class AppDbContext : DbContext
         
         modelBuilder.Entity<TripInviteRecord>(ConfigureTripInvite);            
         modelBuilder.Entity<PlaceholderClaimRecord>(ConfigurePlaceholderClaim); 
+
+        // Transportation
+        modelBuilder.Entity<TransportationRecord>(ConfigureTransportation);
+        modelBuilder.Entity<TransportationRouteRecord>(ConfigureTransportationRoute);
+        modelBuilder.Entity<TransportationDocumentRecord>(ConfigureTransportationDocument);
     }
 
     private static void ConfigureUser(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<UserRecord> e)
@@ -94,6 +105,11 @@ public sealed class AppDbContext : DbContext
         e.HasMany(x => x.Destinations)
             .WithOne(d => d.Trip)
             .HasForeignKey(d => d.TripId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        e.HasMany(x => x.Transportations)
+            .WithOne(t => t.Trip)
+            .HasForeignKey(t => t.TripId)
             .OnDelete(DeleteBehavior.Cascade);
 
         e.HasMany(x => x.TermProposals)
@@ -289,5 +305,48 @@ public sealed class AppDbContext : DbContext
         e.Property(x => x.TermProposalId).IsRequired();
         e.Property(x => x.ParticipantId).IsRequired();
         e.HasIndex(x => x.ParticipantId);
+    }
+
+    private static void ConfigureTransportation(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<TransportationRecord> e)
+    {
+        e.ToTable("Transportations");
+        e.HasKey(x => x.TransportationId);
+        e.Property(x => x.TripId).IsRequired();
+        e.Property(x => x.Title).IsRequired().HasMaxLength(256);
+        e.Property(x => x.Description).HasDefaultValue(string.Empty);
+        e.Property(x => x.CreatedByUserId).IsRequired();
+        e.Property(x => x.CreatedAt).IsRequired();
+
+        e.HasMany(x => x.Routes)
+            .WithOne()
+            .HasForeignKey(r => r.TransportationId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        e.HasMany(x => x.Documents)
+            .WithOne()
+            .HasForeignKey(d => d.TransportationId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+
+    private static void ConfigureTransportationRoute(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<TransportationRouteRecord> e)
+    {
+        e.ToTable("TransportationRoutes");
+        e.HasKey(x => x.Id);
+        e.Property(x => x.TransportationId).IsRequired();
+        e.Property(x => x.Url).IsRequired();
+        e.Property(x => x.ContentType).IsRequired();
+        e.Property(x => x.FileName).IsRequired();
+        e.Property(x => x.UploadedAt).IsRequired();
+    }
+
+    private static void ConfigureTransportationDocument(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<TransportationDocumentRecord> e)
+    {
+        e.ToTable("TransportationDocuments");
+        e.HasKey(x => x.Id);
+        e.Property(x => x.TransportationId).IsRequired();
+        e.Property(x => x.Url).IsRequired();
+        e.Property(x => x.ContentType).IsRequired();
+        e.Property(x => x.FileName).IsRequired();
+        e.Property(x => x.UploadedAt).IsRequired();
     }
 }
