@@ -131,6 +131,7 @@ v1.MapParticipantsEndpoints();
 v1.MapTripsEndpoints();
 v1.MapUsersEndpoints();
 v1.MapItineraryEndpoints();
+v1.MapGearEndpoints();
 
 // ---------------------------
 // AUTH endpoints (public)

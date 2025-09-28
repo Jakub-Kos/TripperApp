@@ -5,6 +5,7 @@ using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Destination;
 using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Trip;
 using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Transportation;
 using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Itinerary;
+using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Gear;
 
 namespace TripPlanner.Adapters.Persistence.Ef.Persistence.Db;
 
@@ -33,6 +34,10 @@ public sealed class AppDbContext : DbContext
     public DbSet<DayRecord> Days => Set<DayRecord>();
     public DbSet<DayItemRecord> DayItems => Set<DayItemRecord>();
     public DbSet<DayRouteFileRecord> DayRouteFiles => Set<DayRouteFileRecord>();
+
+    // Gear
+    public DbSet<GearItemRecord> GearItems => Set<GearItemRecord>();
+    public DbSet<GearAssignmentRecord> GearAssignments => Set<GearAssignmentRecord>();
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -66,6 +71,10 @@ public sealed class AppDbContext : DbContext
         modelBuilder.Entity<DayRecord>(ConfigureDay);
         modelBuilder.Entity<DayItemRecord>(ConfigureDayItem);
         modelBuilder.Entity<DayRouteFileRecord>(ConfigureDayRouteFile);
+
+        // Gear
+        modelBuilder.Entity<GearItemRecord>(ConfigureGearItem);
+        modelBuilder.Entity<GearAssignmentRecord>(ConfigureGearAssignment);
     }
 
     private static void ConfigureUser(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<UserRecord> e)
@@ -438,5 +447,48 @@ public sealed class AppDbContext : DbContext
         e.Property(x => x.UploadedAt).IsRequired();
         e.Property(x => x.UploadedByParticipantId).IsRequired();
         e.HasIndex(x => new { x.DayId, x.RouteId });
+    }
+
+    // --- Gear configuration ---
+    private static void ConfigureGearItem(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<GearItemRecord> e)
+    {
+        e.ToTable("GearItems");
+        e.HasKey(x => x.GearId);
+        e.Property(x => x.TripId).IsRequired();
+        e.Property(x => x.Group).IsRequired();
+        e.Property(x => x.Name).IsRequired();
+        e.Property(x => x.Provisioning).IsRequired();
+        e.Property(x => x.NeededQuantity).IsRequired(false);
+        e.Property(x => x.TagsCsv).IsRequired();
+        e.HasIndex(x => new { x.TripId, x.Group, x.Name });
+
+        e.HasOne(x => x.Trip)
+            .WithMany()
+            .HasForeignKey(x => x.TripId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        e.HasMany(x => x.Assignments)
+            .WithOne(a => a.Gear)
+            .HasForeignKey(a => a.GearId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+
+    private static void ConfigureGearAssignment(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<GearAssignmentRecord> e)
+    {
+        e.ToTable("GearAssignments");
+        e.HasKey(x => x.AssignmentId);
+        e.Property(x => x.GearId).IsRequired();
+        e.Property(x => x.ParticipantId).IsRequired();
+        e.Property(x => x.Quantity).IsRequired();
+        e.Property(x => x.CreatedAt).IsRequired();
+
+        e.HasIndex(x => new { x.GearId, x.ParticipantId });
+
+        // FK to participant by alternate key (ParticipantId)
+        e.HasOne<ParticipantRecord>()
+            .WithMany()
+            .HasForeignKey(x => x.ParticipantId)
+            .HasPrincipalKey(p => p.ParticipantId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }
