@@ -9,7 +9,25 @@ namespace TripPlanner.Wpf.Views
 {
     public partial class MainWindow : Window
     {
-        public MainWindow() => InitializeComponent();
+        public MainWindow()
+        {
+            InitializeComponent();
+            Loaded += OnLoaded;
+        }
+
+        private async void OnLoaded(object sender, RoutedEventArgs e)
+        {
+            // Ensure DataContext is set and data is initialized even if window was not constructed via DI factory
+            if (DataContext is not MainViewModel vm)
+            {
+                var sp = App.Host.Services;
+                vm = sp.GetRequiredService<MainViewModel>();
+                DataContext = vm;
+            }
+
+            // Initialize trips and tabs if not yet done
+            await vm.InitializeAsync();
+        }
         
         private async void OnSignOut(object sender, RoutedEventArgs e)
         {
@@ -36,9 +54,9 @@ namespace TripPlanner.Wpf.Views
                 return;
             }
             
-            // // Optionally reload data after re-login
-            // if (DataContext is MainViewModel vm)
-            //     await vm.LoadTripsAsync();
+            // Reload data after re-login
+            if (DataContext is MainViewModel vm2)
+                await vm2.InitializeAsync();
         }
     }
 }

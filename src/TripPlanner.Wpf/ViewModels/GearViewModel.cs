@@ -35,7 +35,7 @@ public sealed partial class GearViewModel : ObservableObject
     private async Task CreateAsync()
     {
         var dto = await _client.CreateGearItemAsync(TripId,
-            new CreateGearItemRequest(_newGroup, _newName, (GearProvisioning)_newProvisioning, _newNeededQty, System.Array.Empty<string>()));
+            new CreateGearItemRequest(NewGroup, NewName, (GearProvisioning)NewProvisioning, NewNeededQty, System.Array.Empty<string>()));
         if (dto is not null)
         {
             Items.Add(GearItemRow.FromDto(dto));

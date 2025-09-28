@@ -32,7 +32,7 @@ public sealed partial class TransportationsViewModel : ObservableObject
     [RelayCommand] private async Task CreateAsync()
     {
         if (string.IsNullOrWhiteSpace(NewTitle)) return;
-        var id = await _client.CreateTransportationAsync(TripId, _newTitle, _newDescription);
+        var id = await _client.CreateTransportationAsync(TripId, NewTitle, NewDescription);
         if (id is not null)
         {
             await LoadAsync(TripId);
