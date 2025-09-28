@@ -130,6 +130,7 @@ v1.MapInvitesEndpoints();
 v1.MapParticipantsEndpoints();
 v1.MapTripsEndpoints();
 v1.MapUsersEndpoints();
+v1.MapItineraryEndpoints();
 
 // ---------------------------
 // AUTH endpoints (public)

@@ -165,6 +165,7 @@ public class TransportationEndpointsTests : IClassFixture<WebApplicationFactory<
         {
             if (tripId is not null) await DeleteTripAsync(client, access, tripId);
             await DeleteUserMeAsync(client, access);
+            await TestUtils.CleanupWwwrootAsync(_factory);
         }
     }
 }

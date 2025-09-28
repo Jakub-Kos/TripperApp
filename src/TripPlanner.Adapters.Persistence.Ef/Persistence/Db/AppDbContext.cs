@@ -4,6 +4,7 @@ using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Date;
 using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Destination;
 using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Trip;
 using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Transportation;
+using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Itinerary;
 
 namespace TripPlanner.Adapters.Persistence.Ef.Persistence.Db;
 
@@ -27,6 +28,11 @@ public sealed class AppDbContext : DbContext
     public DbSet<TransportationRecord> Transportations => Set<TransportationRecord>();
     public DbSet<TransportationRouteRecord> TransportationRoutes => Set<TransportationRouteRecord>();
     public DbSet<TransportationDocumentRecord> TransportationDocuments => Set<TransportationDocumentRecord>();
+
+    // Itinerary
+    public DbSet<DayRecord> Days => Set<DayRecord>();
+    public DbSet<DayItemRecord> DayItems => Set<DayItemRecord>();
+    public DbSet<DayRouteFileRecord> DayRouteFiles => Set<DayRouteFileRecord>();
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -55,6 +61,11 @@ public sealed class AppDbContext : DbContext
         modelBuilder.Entity<TransportationRecord>(ConfigureTransportation);
         modelBuilder.Entity<TransportationRouteRecord>(ConfigureTransportationRoute);
         modelBuilder.Entity<TransportationDocumentRecord>(ConfigureTransportationDocument);
+
+        // Itinerary
+        modelBuilder.Entity<DayRecord>(ConfigureDay);
+        modelBuilder.Entity<DayItemRecord>(ConfigureDayItem);
+        modelBuilder.Entity<DayRouteFileRecord>(ConfigureDayRouteFile);
     }
 
     private static void ConfigureUser(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<UserRecord> e)
@@ -352,5 +363,80 @@ public sealed class AppDbContext : DbContext
         e.Property(x => x.ContentType).IsRequired();
         e.Property(x => x.FileName).IsRequired();
         e.Property(x => x.UploadedAt).IsRequired();
+    }
+
+    // --- Itinerary configuration ---
+    private static void ConfigureDay(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<DayRecord> e)
+    {
+        e.ToTable("TripDays");
+        e.HasKey(x => x.DayId);
+        e.Property(x => x.TripId).IsRequired();
+        e.Property(x => x.Date).IsRequired();
+        e.Property(x => x.Title).IsRequired(false);
+        e.Property(x => x.Description).IsRequired(false);
+
+        e.HasOne(x => x.Trip)
+            .WithMany()
+            .HasForeignKey(x => x.TripId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        e.OwnsOne(x => x.StartLocation, loc =>
+        {
+            loc.Property(p => p.Name);
+            loc.Property(p => p.Lat);
+            loc.Property(p => p.Lon);
+            loc.Property(p => p.Address);
+            loc.Property(p => p.PlaceId);
+        });
+        e.OwnsOne(x => x.EndLocation, loc =>
+        {
+            loc.Property(p => p.Name);
+            loc.Property(p => p.Lat);
+            loc.Property(p => p.Lon);
+            loc.Property(p => p.Address);
+            loc.Property(p => p.PlaceId);
+        });
+
+        e.HasMany(x => x.Items)
+            .WithOne(i => i.Day)
+            .HasForeignKey(i => i.DayId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        e.HasMany(x => x.Routes)
+            .WithOne(r => r.Day)
+            .HasForeignKey(r => r.DayId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        e.HasIndex(x => new { x.TripId, x.Date });
+    }
+
+    private static void ConfigureDayItem(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<DayItemRecord> e)
+    {
+        e.ToTable("TripDayItems");
+        e.HasKey(x => x.ItemId);
+        e.Property(x => x.DayId).IsRequired();
+        e.Property(x => x.Type).IsRequired();
+        e.Property(x => x.Name).IsRequired();
+        e.Property(x => x.ScheduledStart).IsRequired(false);
+        e.Property(x => x.DurationMinutes).IsRequired(false);
+        e.Property(x => x.Notes).IsRequired(false);
+        e.Property(x => x.Link).IsRequired(false);
+        e.Property(x => x.OrderIndex).IsRequired();
+        e.HasIndex(x => new { x.DayId, x.OrderIndex }).IsUnique();
+    }
+
+    private static void ConfigureDayRouteFile(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<DayRouteFileRecord> e)
+    {
+        e.ToTable("TripDayRoutes");
+        e.HasKey(x => x.RouteId);
+        e.Property(x => x.RouteId).ValueGeneratedOnAdd();
+        e.Property(x => x.DayId).IsRequired();
+        e.Property(x => x.Url).IsRequired();
+        e.Property(x => x.FileName).IsRequired();
+        e.Property(x => x.MediaType).IsRequired();
+        e.Property(x => x.SizeBytes).IsRequired();
+        e.Property(x => x.UploadedAt).IsRequired();
+        e.Property(x => x.UploadedByParticipantId).IsRequired();
+        e.HasIndex(x => new { x.DayId, x.RouteId });
     }
 }

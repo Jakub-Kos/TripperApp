@@ -36,3 +36,4 @@ Thumbs.db
 
 # Local files you generated
 project-files.txt
+/src/TripPlanner.Api/wwwroot/
