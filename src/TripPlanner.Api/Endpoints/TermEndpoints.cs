@@ -204,7 +204,53 @@ public static class TermEndpoints
             .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
             .Produces(StatusCodes.Status403Forbidden)
             .Produces(StatusCodes.Status401Unauthorized);
+        
+        // GET list of term proposals for a trip
+        v1.MapGet("/trips/{tripId:guid}/term-proposals", async (Guid tripId, AppDbContext db, CancellationToken ct) =>
+            {
+                var exists = await db.Trips.AsNoTracking().AnyAsync(t => t.TripId == tripId, ct);
+                if (!exists) return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip not found"));
 
+                var list = await db.TermProposals.AsNoTracking()
+                    .Where(t => t.TripId == tripId)
+                    .OrderBy(t => t.StartIso)
+                    .Select(t => new
+                    {
+                        termProposalId = t.TermProposalId,
+                        start = t.StartIso,
+                        end = t.EndIso,
+                        createdByUserId = t.CreatedByUserId,
+                        createdAt = t.CreatedAt,
+                        votesCount = t.Votes.Count
+                    })
+                    .ToListAsync(ct);
+                return Results.Ok(list);
+            })
+            .WithTags("Dates")
+            .WithSummary("List term proposals")
+            .WithDescription("Returns all proposed terms (start/end) for the trip with vote counts.")
+            .Produces(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+
+        // GET votes for a specific term proposal
+        v1.MapGet("/trips/{tripId:guid}/term-proposals/{termId:guid}/votes", async (Guid tripId, Guid termId, AppDbContext db, CancellationToken ct) =>
+            {
+                var term = await db.TermProposals.AsNoTracking().FirstOrDefaultAsync(t => t.TermProposalId == termId && t.TripId == tripId, ct);
+                if (term is null) return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Term proposal not found"));
+
+                var votes = await db.TermProposalVotes.AsNoTracking()
+                    .Where(v => v.TermProposalId == termId)
+                    .OrderBy(v => v.ParticipantId)
+                    .Select(v => v.ParticipantId.ToString("D"))
+                    .ToListAsync(ct);
+                return Results.Ok(votes);
+            })
+            .WithTags("Dates")
+            .WithSummary("Get votes for a term proposal")
+            .WithDescription("Returns participantIds who voted for the given term proposal.")
+            .Produces(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+        
         return v1;
     }
 }

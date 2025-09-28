@@ -220,6 +220,30 @@ public static class DateEndpoints
             .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
             .Produces(StatusCodes.Status400BadRequest);
         
+        // GET raw per-user/day availability
+        v1.MapGet("/trips/{tripId:guid}/date-votes", async (Guid tripId, AppDbContext db, CancellationToken ct) =>
+            {
+                var tripExists = await db.Trips.AsNoTracking().AnyAsync(t => t.TripId == tripId, ct);
+                if (!tripExists) return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip not found"));
+
+                var list = await db.DateOptions.AsNoTracking()
+                    .Where(o => o.TripId == tripId)
+                    .Select(o => new
+                    {
+                        date = o.DateIso,
+                        participantIds = o.Votes.OrderBy(v => v.ParticipantId).Select(v => v.ParticipantId.ToString("D")).ToList()
+                    })
+                    .OrderBy(x => x.date)
+                    .ToListAsync(ct);
+
+                return Results.Ok(list);
+            })
+            .WithTags("Dates")
+            .WithSummary("Get raw per-user/day availability")
+            .WithDescription("Returns an array of { date, participantIds } representing votes for each date option.")
+            .Produces(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+        
         return v1;
+        }
     }
-}

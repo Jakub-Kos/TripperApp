@@ -67,7 +67,7 @@ public class DestinationImagesTests : IClassFixture<WebApplicationFactory<Progra
     }
 
     [Fact]
-    public async Task Destination_Upload_Png_Jpeg_And_List()
+    public async Task Destination_Upload_Png_Jpeg_List_GetEndpoint_And_Delete_ByOrganizer()
     {
         var client = _factory.CreateClient();
         var emailA = NewEmail("alice");
@@ -114,6 +114,34 @@ public class DestinationImagesTests : IClassFixture<WebApplicationFactory<Progra
             var found = arr.EnumerateArray().First(e => e.GetProperty("destinationId").GetGuid().ToString("D") == destId);
             var listedUrls = found.GetProperty("imageUrls").EnumerateArray().Select(e => e.GetString()!).ToList();
             urls.All(u => listedUrls.Contains(u)).Should().BeTrue();
+
+            // New: GET images endpoint should return two items with ids and urls
+            var imagesGet = await client.GetAsync($"/api/v1/trips/{tripId}/destinations/{destId}/images");
+            imagesGet.EnsureSuccessStatusCode();
+            var arrImgs = await imagesGet.Content.ReadFromJsonAsync<JsonElement>();
+            arrImgs.ValueKind.Should().Be(JsonValueKind.Array);
+            arrImgs.GetArrayLength().Should().Be(2);
+            var firstImg = arrImgs.EnumerateArray().First();
+            var firstId = firstImg.GetProperty("id").GetInt32();
+            var firstUrl = firstImg.GetProperty("url").GetString()!;
+            urls.Contains(firstUrl).Should().BeTrue();
+
+            // Delete one image as organizer
+            var del = await client.DeleteAsync($"/api/v1/trips/{tripId}/destinations/{destId}/images/{firstId}");
+            del.EnsureSuccessStatusCode();
+
+            // Verify list now has 1 image
+            var imagesGet2 = await client.GetAsync($"/api/v1/trips/{tripId}/destinations/{destId}/images");
+            imagesGet2.EnsureSuccessStatusCode();
+            var arrImgs2 = await imagesGet2.Content.ReadFromJsonAsync<JsonElement>();
+            arrImgs2.GetArrayLength().Should().Be(1);
+
+            // And destinations listing reflects removal
+            var listAfter = await client.GetAsync($"/api/v1/trips/{tripId}/destinations");
+            listAfter.EnsureSuccessStatusCode();
+            var arrAfter = await listAfter.Content.ReadFromJsonAsync<JsonElement>();
+            var foundAfter = arrAfter.EnumerateArray().First(e => e.GetProperty("destinationId").GetGuid().ToString("D") == destId);
+            foundAfter.GetProperty("imageUrls").GetArrayLength().Should().Be(1);
         }
         finally
         {

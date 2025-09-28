@@ -188,6 +188,73 @@ public static class DestinationEndpoints
             .Produces(StatusCodes.Status201Created)
             .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
             .Produces(StatusCodes.Status400BadRequest);
+
+        // List images for a destination (returns id + url)
+        v1.MapGet("/trips/{tripId:guid}/destinations/{destinationId:guid}/images",
+                async (Guid tripId, Guid destinationId, AppDbContext db, CancellationToken ct) =>
+                {
+                    var dest = await db.Destinations.Include(d => d.Images)
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(d => d.TripId == tripId && d.DestinationId == destinationId, ct);
+                    if (dest is null)
+                        return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip or destination not found"));
+
+                    var images = dest.Images
+                        .OrderBy(i => i.Id)
+                        .Select(i => new { id = i.Id, url = i.Url })
+                        .ToList();
+                    return Results.Ok(images);
+                })
+            .WithTags("Destinations")
+            .WithSummary("List images for a destination proposal")
+            .WithDescription("Returns the images (id and url) stored for a destination proposal.")
+            .Produces(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+
+        // Delete a specific image (organizer only); idempotent
+        v1.MapDelete("/trips/{tripId:guid}/destinations/{destinationId:guid}/images/{imageId:int}",
+                async (Guid tripId, Guid destinationId, int imageId, AppDbContext db, IWebHostEnvironment env, System.Security.Claims.ClaimsPrincipal user, CancellationToken ct) =>
+                {
+                    var sub = user.FindFirst("sub")?.Value ?? user.FindFirst("nameid")?.Value;
+                    if (!Guid.TryParse(sub, out var me)) return Results.Unauthorized();
+
+                    var dest = await db.Destinations.Include(d => d.Trip)
+                        .Include(d => d.Images)
+                        .FirstOrDefaultAsync(d => d.TripId == tripId && d.DestinationId == destinationId, ct);
+                    if (dest is null) return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip or destination not found"));
+
+                    if (dest.Trip.OrganizerId != me) return Results.Forbid();
+
+                    var img = dest.Images.FirstOrDefault(i => i.Id == imageId);
+                    if (img is null) return Results.NoContent();
+
+                    // Try delete the file from disk
+                    var root = env.WebRootPath ?? Path.Combine(AppContext.BaseDirectory, "wwwroot");
+                    try
+                    {
+                        var url = img.Url?.Replace('/', Path.DirectorySeparatorChar).TrimStart(Path.DirectorySeparatorChar);
+                        if (!string.IsNullOrWhiteSpace(url))
+                        {
+                            var absPath = Path.Combine(root, url);
+                            if (File.Exists(absPath))
+                            {
+                                File.Delete(absPath);
+                            }
+                        }
+                    }
+                    catch { /* ignore file IO errors during deletion */ }
+
+                    db.DestinationImages.Remove(img);
+                    await db.SaveChangesAsync(ct);
+                    return Results.NoContent();
+                })
+            .WithTags("Destinations")
+            .WithSummary("Delete an image from a destination proposal")
+            .WithDescription("Organizer can delete a stored image by its id. Idempotent: returns 204 if already removed.")
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status403Forbidden)
+            .Produces(StatusCodes.Status401Unauthorized);
         
         return v1;
     }
