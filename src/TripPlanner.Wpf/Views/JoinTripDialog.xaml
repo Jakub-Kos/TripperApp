@@ -1,0 +1,84 @@
+﻿<Window x:Class="TripPlanner.Wpf.Views.JoinTripDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:TripPlanner.Wpf.ViewModels"
+        xmlns:conv="clr-namespace:TripPlanner.Wpf.Converters"
+        Title="Join Trip" SizeToContent="WidthAndHeight"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        MinWidth="500" MinHeight="320">
+  <Window.Resources>
+    <conv:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
+    <conv:EnumEqualsConverter x:Key="EnumEqualsConverter"/>
+    <conv:JoinModeToVisibility x:Key="JoinModeToVisibility"/>
+    <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+  </Window.Resources>
+  <Grid Margin="16">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+    <TextBlock Text="How would you like to join?" FontWeight="Bold" FontSize="16"/>
+
+    <!-- Mode selector -->
+    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,8,0,12">
+      <RadioButton Content="Claim placeholder"
+                   IsChecked="{Binding Mode, Converter={StaticResource EnumEqualsConverter}, ConverterParameter={x:Static local:JoinMode.ClaimPlaceholder}}"
+                   Margin="0,0,12,0"/>
+      <RadioButton Content="Join as me"
+                   IsChecked="{Binding Mode, Converter={StaticResource EnumEqualsConverter}, ConverterParameter={x:Static local:JoinMode.JoinAsMe}}"/>
+    </StackPanel>
+
+    <!-- Panels -->
+    <Grid Grid.Row="2">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+      </Grid.RowDefinitions>
+
+      <!-- Claim panel -->
+      <StackPanel Visibility="{Binding Mode, Converter={StaticResource JoinModeToVisibility}, ConverterParameter=Claim}">
+        <TextBlock Text="Enter claim code you received from the organizer."/>
+        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+          <TextBlock Text="Claim code:" VerticalAlignment="Center" Width="100"/>
+          <TextBox Width="260" Text="{Binding ClaimCode, UpdateSourceTrigger=PropertyChanged}"/>
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+          <TextBlock Text="Display name:" VerticalAlignment="Center" Width="100"/>
+          <TextBox Width="260" Text="{Binding ClaimDisplayName, UpdateSourceTrigger=PropertyChanged}"/>
+        </StackPanel>
+      </StackPanel>
+
+      <!-- Join-as-me panel -->
+      <StackPanel Visibility="{Binding Mode, Converter={StaticResource JoinModeToVisibility}, ConverterParameter=Join}">
+        <TextBlock Text="Enter an invite code to join as yourself."/>
+        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+          <TextBlock Text="Invite code:" VerticalAlignment="Center" Width="100"/>
+          <TextBox Width="260" Text="{Binding InviteCode, UpdateSourceTrigger=PropertyChanged}"/>
+        </StackPanel>
+      </StackPanel>
+    </Grid>
+
+    <!-- Footer -->
+    <DockPanel Grid.Row="3" Margin="0,12,0,0">
+      <TextBlock DockPanel.Dock="Left" Text="{Binding Status}" Foreground="Gray" VerticalAlignment="Center"/>
+      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+        <Button Content="Claim" Margin="0,0,8,0"
+                Visibility="{Binding Mode, Converter={StaticResource JoinModeToVisibility}, ConverterParameter=Claim}"
+                IsEnabled="{Binding Busy, Converter={StaticResource InverseBooleanConverter}}"
+                Command="{Binding ClaimCommand}"/>
+        <Button Content="Join"
+                Visibility="{Binding Mode, Converter={StaticResource JoinModeToVisibility}, ConverterParameter=Join}"
+                IsEnabled="{Binding Busy, Converter={StaticResource InverseBooleanConverter}}"
+                Command="{Binding JoinCommand}"/>
+        <Button Content="Cancel" Margin="8,0,0,0"
+                IsEnabled="{Binding Busy, Converter={StaticResource InverseBooleanConverter}}"
+                Command="{Binding CancelCommand}"/>
+      </StackPanel>
+    </DockPanel>
+  </Grid>
+</Window>

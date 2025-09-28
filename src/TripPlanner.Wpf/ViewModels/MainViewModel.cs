@@ -140,6 +140,21 @@ public partial class MainViewModel : ObservableObject
         catch (Exception ex) { Status = ex.Message; }
         finally { Busy = false; }
     }
+    
+    // In MainViewModel (inject ITripPlannerClient _client)
+    [RelayCommand]
+    private void OpenJoinTripDialog()
+    {
+        var vm = new JoinTripViewModel(_client);
+        var dlg = new TripPlanner.Wpf.Views.JoinTripDialog(vm)
+        {
+            Owner = System.Windows.Application.Current.MainWindow
+        };
+        dlg.ShowDialog();
+        // Optionally: reload trips/participants after success
+        // if (dlg.DialogResult == true) await ReloadCurrentAsync();
+    }
+
 }
 
 public sealed record TripListItem(string TripId, string Name);

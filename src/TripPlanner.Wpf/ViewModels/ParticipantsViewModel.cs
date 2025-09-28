@@ -1,9 +1,11 @@
-﻿using System.Collections.ObjectModel;
+﻿using System;
+using System.Collections.ObjectModel;
+using System.Linq;
+using System.Reflection;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TripPlanner.Client.Abstractions;
-using TripPlanner.Core.Contracts.Contracts.Common.Participants;
 
 namespace TripPlanner.Wpf.ViewModels;
 
@@ -15,76 +17,146 @@ public sealed partial class ParticipantsViewModel : ObservableObject
     [ObservableProperty] private string _tripId = "";
     public ObservableCollection<ParticipantRow> Items { get; } = new();
 
-    [ObservableProperty] private string _newPlaceholderName = "";
-    [ObservableProperty] private string _inviteCode = "";
-    [ObservableProperty] private string _claimCode = "";
+    // Current-user perspective
+    [ObservableProperty] private bool _isOrganizerMe;
+    [ObservableProperty] private string _organizerDisplay = "Organizer: —";
 
     public async Task LoadAsync(string tripId)
     {
         TripId = tripId;
         Items.Clear();
-        var ps = await _client.ListParticipantsAsync(tripId);
-        if (ps is null) return;
-        foreach (var p in ps) Items.Add(new(p.ParticipantId, p.DisplayName));
+        IsOrganizerMe = false;
+        OrganizerDisplay = "Organizer: —";
+
+        var list = await _client.ListParticipantsAsync(tripId);
+        if (list is null) return;
+
+        foreach (var p in list)
+        {
+            // Read properties via reflection to tolerate your recent DTO change.
+            var pid          = GetString(p, "ParticipantId");
+            var displayName  = GetString(p, "DisplayName");
+            var isPlaceholder= GetBool(p,   "IsPlaceholder");
+            var isMe         = GetBool(p,   "IsMe");          // asserted by your tests
+            var isOrganizer  = GetBool(p,   "IsOrganizer");   // if missing -> false
+            var username     = GetNullableString(p, "Username");
+            var userId       = GetNullableString(p, "UserId");
+
+            var row = new ParticipantRow(
+                pid: pid,
+                displayName: displayName,
+                isPlaceholder: isPlaceholder,
+                isOrganizer: isOrganizer,
+                username: username,
+                userId: userId,
+                isSelf: isMe
+            );
+            Items.Add(row);
+
+            if (row.IsOrganizer)
+                OrganizerDisplay = $"Organizer: {(!string.IsNullOrWhiteSpace(row.Username) ? row.Username : row.DisplayName)}";
+        }
+
+        IsOrganizerMe = Items.Any(x => x.IsSelf && x.IsOrganizer);
+
+        // Set per-row permissions based on organizer status
+        foreach (var r in Items) r.UpdatePermissions(IsOrganizerMe);
+
+        // Ordering: organizer first, then real users, then placeholders, then by name
+        var ordered = Items.OrderByDescending(x => x.IsOrganizer)
+                           .ThenBy(x => x.IsPlaceholder)
+                           .ThenBy(x => (x.Username ?? x.DisplayName))
+                           .ToList();
+
+        if (!ordered.SequenceEqual(Items))
+        {
+            Items.Clear();
+            foreach (var r in ordered) Items.Add(r);
+        }
     }
 
-    [RelayCommand]
-    private async Task AddPlaceholderAsync()
-    {
-        if (string.IsNullOrWhiteSpace(NewPlaceholderName)) return;
-        await _client.CreatePlaceholderAsync(TripId, NewPlaceholderName);
-        await LoadAsync(TripId);
-        NewPlaceholderName = "";
-    }
+    // -------- Organizer-only actions (per your new rules): Rename (placeholders) & Remove (anyone but self)
 
     [RelayCommand]
     private async Task RenameAsync(ParticipantRow row)
     {
+        if (!IsOrganizerMe || row is null || !row.IsPlaceholder) return;
         await _client.UpdateParticipantDisplayNameAsync(TripId, row.ParticipantId, row.DisplayName);
     }
 
     [RelayCommand]
     private async Task RemoveAsync(ParticipantRow row)
     {
+        if (!IsOrganizerMe || row is null || row.IsSelf) return; // organizer cannot remove himself
         await _client.DeleteParticipantAsync(TripId, row.ParticipantId);
         Items.Remove(row);
     }
 
-    [RelayCommand]
-    private async Task IssueClaimCodeAsync(ParticipantRow row)
-    {
-        var info = await _client.IssueClaimCodeAsync(TripId, row.ParticipantId, 30);
-        if (info is not null) ClaimCode = info.Value.code;
-    }
+    // ---- Helpers to read possibly changed DTOs safely (reflection)
+    private static string GetString(object obj, string name)
+        => obj.GetType().GetProperty(name, BindingFlags.Public | BindingFlags.Instance)
+              ?.GetValue(obj)?.ToString() ?? string.Empty;
 
-    [RelayCommand]
-    private async Task ClaimPlaceholderAsync()
-    {
-        if (string.IsNullOrWhiteSpace(ClaimCode)) return;
-        await _client.ClaimPlaceholderAsync(ClaimCode, null);
-        ClaimCode = "";
-        await LoadAsync(TripId);
-    }
+    private static string? GetNullableString(object obj, string name)
+        => obj.GetType().GetProperty(name, BindingFlags.Public | BindingFlags.Instance)
+              ?.GetValue(obj)?.ToString();
 
-    [RelayCommand]
-    private async Task CreateInviteCodeAsync()
-    {
-        var inv = await _client.CreateInviteAsync(TripId, expiresInMinutes: 120, maxUses: 10);
-        if (inv is not null) InviteCode = inv.Value.code;
-    }
-
-    [RelayCommand]
-    private async Task JoinByCodeAsync()
-    {
-        if (string.IsNullOrWhiteSpace(InviteCode)) return;
-        await _client.JoinByCodeAsync(InviteCode);
-        InviteCode = "";
-    }
+    private static bool GetBool(object obj, string name)
+        => (obj.GetType().GetProperty(name, BindingFlags.Public | BindingFlags.Instance)
+              ?.GetValue(obj) as bool?) ?? false;
 }
 
 public sealed partial class ParticipantRow : ObservableObject
 {
-    public ParticipantRow(string pid, string displayName) { ParticipantId = pid; _displayName = displayName; }
+    public ParticipantRow(
+        string pid,
+        string displayName,
+        bool isPlaceholder,
+        bool isOrganizer,
+        string? username,
+        string? userId,
+        bool isSelf)
+    {
+        ParticipantId = pid;
+        _displayName = displayName;
+        IsPlaceholder = isPlaceholder;
+        IsOrganizer = isOrganizer;
+        Username = string.IsNullOrWhiteSpace(username) ? null : username;
+        UserId = string.IsNullOrWhiteSpace(userId) ? null : userId;
+        IsSelf = isSelf;
+    }
+
     public string ParticipantId { get; }
     [ObservableProperty] private string _displayName;
+
+    public bool IsPlaceholder { get; }
+    public bool IsOrganizer { get; }
+    public bool IsSelf { get; }
+    public string? Username { get; }
+    public string? UserId { get; }
+
+    // Calculated after VM learns if current user is organizer
+    [ObservableProperty] private bool _canRename;
+    [ObservableProperty] private bool _canRemove;
+
+    public bool IsRealUser => !IsPlaceholder;
+
+    public string RoleBadge =>
+        IsOrganizer ? "Organizer" :
+        IsPlaceholder ? "Placeholder" : "User";
+
+    public string DisplayPrimary =>
+        IsPlaceholder ? DisplayName :
+        !string.IsNullOrWhiteSpace(Username) ? Username! : DisplayName;
+
+    public string? DisplaySecondary =>
+        IsPlaceholder ? null :
+        (!string.IsNullOrWhiteSpace(DisplayName) && !string.Equals(DisplayName, Username, StringComparison.OrdinalIgnoreCase))
+            ? DisplayName : null;
+
+    public void UpdatePermissions(bool isOrganizerMe)
+    {
+        CanRename = isOrganizerMe && IsPlaceholder; // organizer may rename placeholders
+        CanRemove = isOrganizerMe && !IsSelf;       // organizer may remove anyone except himself
+    }
 }

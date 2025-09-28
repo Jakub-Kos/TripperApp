@@ -73,6 +73,7 @@
             </Style>
           </Button.Style>
         </Button>
+        <Button Content="Join trip…" Command="{Binding OpenJoinTripDialogCommand}" />
         <TextBlock Text="{Binding Status}" Foreground="Crimson" Margin="16,0,0,0" VerticalAlignment="Center"/>
       </StackPanel>
 

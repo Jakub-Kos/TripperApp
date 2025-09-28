@@ -1,0 +1,33 @@
+﻿using System;
+using System.Globalization;
+using System.Windows;
+using System.Windows.Data;
+
+namespace TripPlanner.Wpf.Converters
+{
+    // InverseBooleanConverter
+    public sealed class InverseBooleanConverter : IValueConverter
+    {
+        public object Convert(object value, Type t, object p, CultureInfo c) => !(value is bool b && b);
+        public object ConvertBack(object v, Type t, object p, CultureInfo c) => Binding.DoNothing;
+    }
+
+    // EnumEqualsConverter: checks equality to ConverterParameter
+    public sealed class EnumEqualsConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+            => value?.ToString() == parameter?.ToString();
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => Binding.DoNothing;
+    }
+
+    // JoinModeToVisibility: parameter "Claim" or "Join"
+    public sealed class JoinModeToVisibility : IValueConverter
+    {
+        public object Convert(object value, Type t, object parameter, CultureInfo c)
+            => (value?.ToString() == "ClaimPlaceholder" && (string?)parameter == "Claim") ||
+               (value?.ToString() == "JoinAsMe"        && (string?)parameter == "Join")
+                ? Visibility.Visible : Visibility.Collapsed;
+        public object ConvertBack(object v, Type t, object p, CultureInfo c) => Binding.DoNothing;
+    }
+}
