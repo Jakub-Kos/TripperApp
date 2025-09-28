@@ -570,6 +570,15 @@ public sealed class TripPlannerClient(HttpClient http) : ITripPlannerClient
         return false;
     }
 
+    public async Task<bool> UpdateMyParticipantDisplayNameAsync(string tripId, string displayName, CancellationToken ct = default)
+    {
+        using var res = await http.PatchAsJsonAsync($"/api/v1/trips/{tripId}/participants/me", new { displayName }, ct);
+        if (res.StatusCode == HttpStatusCode.NotFound) return false;
+        if (res.StatusCode == HttpStatusCode.NoContent) return true;
+        await ThrowIfError(res, "Failed to update my participant display name.", ct);
+        return false;
+    }
+
     public async Task<bool> DeleteParticipantAsync(string tripId, string participantId, CancellationToken ct = default)
     {
         using var res = await http.DeleteAsync($"/api/v1/trips/{tripId}/participants/{participantId}", ct);

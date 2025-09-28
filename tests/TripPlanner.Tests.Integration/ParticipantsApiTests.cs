@@ -127,4 +127,42 @@ public class ParticipantsApiTests : IClassFixture<WebApplicationFactory<Program>
             await client.DeleteAsync("/api/v1/users/me");
         }
     }
+
+    [Fact]
+    public async Task Participant_Can_Update_Own_Trip_DisplayName()
+    {
+        var client = _factory.CreateClient();
+        var email = NewEmail("selfrename");
+        await RegisterAsync(client, email, "1", "Original User");
+        var (access, _) = await LoginAsync(client, email, "1");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", access);
+
+        string? tripId = null;
+        try
+        {
+            // Create a trip (organizer becomes a real participant)
+            var createTrip = await client.PostAsJsonAsync("/api/v1/trips", new { name = "Rename Me Trip" });
+            createTrip.EnsureSuccessStatusCode();
+            var createdTrip = await createTrip.Content.ReadFromJsonAsync<JsonElement>();
+            tripId = createdTrip.GetProperty("tripId").GetString()!;
+
+            // Update my participant display name within the trip
+            var patch = await client.PatchAsJsonAsync($"/api/v1/trips/{tripId}/participants/me", new { displayName = "Trip Nick" });
+            patch.EnsureSuccessStatusCode();
+
+            // Verify via participants list
+            var list = await client.GetAsync($"/api/v1/trips/{tripId}/participants");
+            list.EnsureSuccessStatusCode();
+            var arr = await list.Content.ReadFromJsonAsync<JsonElement>();
+            arr.EnumerateArray().Any(e => e.GetProperty("isMe").GetBoolean() && e.GetProperty("displayName").GetString() == "Trip Nick").Should().BeTrue();
+        }
+        finally
+        {
+            if (tripId is not null)
+                await client.DeleteAsync($"/api/v1/trips/{tripId}");
+            // cleanup user
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", (await LoginAsync(client, email, "1")).access);
+            await client.DeleteAsync("/api/v1/users/me");
+        }
+    }
 }

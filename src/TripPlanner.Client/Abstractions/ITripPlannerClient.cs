@@ -97,6 +97,7 @@ public interface ITripPlannerClient
     Task<IReadOnlyList<ParticipantInfoDto>?> ListParticipantsAsync(string tripId, CancellationToken ct = default);
     Task<string?> CreatePlaceholderAsync(string tripId, string displayName, CancellationToken ct = default);
     Task<bool> UpdateParticipantDisplayNameAsync(string tripId, string participantId, string displayName, CancellationToken ct = default);
+    Task<bool> UpdateMyParticipantDisplayNameAsync(string tripId, string displayName, CancellationToken ct = default);
     Task<bool> DeleteParticipantAsync(string tripId, string participantId, CancellationToken ct = default);
     Task<(string code, string url)?> IssueClaimCodeAsync(string tripId, string participantId, int? expiresInMinutes = null, CancellationToken ct = default);
     Task<bool> ClaimPlaceholderAsync(string code, string? displayName = null, CancellationToken ct = default);

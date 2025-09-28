@@ -227,6 +227,32 @@ public static class ParticipantsEndpoints
             .Produces(StatusCodes.Status204NoContent)
             .Produces(StatusCodes.Status400BadRequest);
         
+        // New: current user can update their own (non-placeholder) display name within a trip
+        v1.MapPatch("/trips/{tripId:guid}/participants/me", async (Guid tripId, UpdateParticipantDisplayNameRequest req, AppDbContext db, System.Security.Claims.ClaimsPrincipal user, CancellationToken ct) =>
+            {
+                var sub = user.FindFirst("sub")?.Value ?? user.FindFirst("nameid")?.Value;
+                if (!Guid.TryParse(sub, out var me)) return Results.Unauthorized();
+                var display = (req.DisplayName ?? string.Empty).Trim();
+                if (string.IsNullOrWhiteSpace(display)) return Results.BadRequest("DisplayName is required.");
+
+                var participant = await db.Participants.FirstOrDefaultAsync(p => p.TripId == tripId && p.UserId == me, ct);
+                if (participant is null) return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Participant not found"));
+                if (participant.IsPlaceholder || participant.UserId == null)
+                    return Results.BadRequest("Only real users can rename themselves via this endpoint.");
+
+                participant.DisplayName = display;
+                await db.SaveChangesAsync(ct);
+                return Results.NoContent();
+            })
+            .WithTags("Participants")
+            .WithSummary("Update my trip display name")
+            .WithDescription("Allows the authenticated user to change their own display name within the specified trip.")
+            .Accepts<UpdateParticipantDisplayNameRequest>("application/json")
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status400BadRequest)
+            .Produces(StatusCodes.Status401Unauthorized);
+        
         return v1;
     }
 }

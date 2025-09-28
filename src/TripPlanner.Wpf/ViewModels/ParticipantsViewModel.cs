@@ -83,7 +83,10 @@ public sealed partial class ParticipantsViewModel : ObservableObject
     {
         if (row is null) return;
         if (!(row.CanRename)) return;
-        await _client.UpdateParticipantDisplayNameAsync(TripId, row.ParticipantId, row.DisplayName);
+        if (row.IsSelf && !row.IsPlaceholder)
+            await _client.UpdateMyParticipantDisplayNameAsync(TripId, row.DisplayName);
+        else
+            await _client.UpdateParticipantDisplayNameAsync(TripId, row.ParticipantId, row.DisplayName);
     }
 
     // Organizer can remove anyone EXCEPT himself
