@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks;
+﻿using System;
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TripPlanner.Client.Abstractions;
@@ -10,33 +11,101 @@ public partial class OverviewViewModel : ObservableObject
     private readonly ITripPlannerClient _client;
     public OverviewViewModel(ITripPlannerClient client) => _client = client;
 
+    // Callback into MainViewModel status bar
+    public Action<string>? ReportStatus { get; set; }
+
+    // ------ Read-only state (bound in read-only view) ------
     [ObservableProperty] private string _tripId = "";
     [ObservableProperty] private string _name = "";
     [ObservableProperty] private string _description = "";
     [ObservableProperty] private bool _isFinished;
 
+    // ------ Editing state (bound in edit view) ------
+    [ObservableProperty] private bool _isEditing;
+    [ObservableProperty] private string _editName = "";
+    [ObservableProperty] private string _editDescription = "";
+    [ObservableProperty] private bool _editIsFinished;
+
+    /// <summary>
+    /// Loads trip overview and prepares read-only state.
+    /// </summary>
     public async Task LoadAsync(string tripId)
     {
         TripId = tripId;
+        IsEditing = false;
+
         var s = await _client.GetTripByIdAsync(tripId);
-        if (s != null)
-        {
-            Name = s.Name;
-            IsFinished = s.IsFinished;
-        }
+        Name = s?.Name ?? "";
+        // Prefer explicit finished flag names commonly used in your contracts
+        IsFinished = (s?.IsFinished) ?? (s?.IsFinished ?? false);
+
         Description = await _client.GetTripDescriptionAsync(tripId) ?? string.Empty;
+
+        // Keep edit fields in sync (so entering edit shows current values)
+        EditName = Name;
+        EditDescription = Description;
+        EditIsFinished = IsFinished;
+    }
+
+    // ------ Commands ------
+
+    [RelayCommand]
+    private void EnterEdit()
+    {
+        EditName = Name;
+        EditDescription = Description;
+        EditIsFinished = IsFinished;
+        IsEditing = true;
+        ReportStatus?.Invoke("Editing trip overview…");
     }
 
     [RelayCommand]
-    private async Task SaveDescriptionAsync()
+    private async Task SaveEditAsync()
     {
-        await _client.SetTripDescriptionAsync(TripId, Description);
+        try
+        {
+            // Save only what really changed
+            if (EditDescription != Description)
+            {
+                await _client.SetTripDescriptionAsync(TripId, EditDescription);
+                Description = EditDescription;
+                ReportStatus?.Invoke("Description saved.");
+            }
+
+            if (EditIsFinished != IsFinished)
+            {
+                await _client.UpdateTripStatusAsync(TripId, EditIsFinished);
+                IsFinished = EditIsFinished;
+                ReportStatus?.Invoke(EditIsFinished ? "Trip marked as finished." : "Trip re-opened.");
+            }
+
+            if (EditName != Name)
+            {
+                // The API (as of now) doesn’t support renaming trips. Surface a gentle hint.
+                ReportStatus?.Invoke("Renaming trips isn’t supported yet. Name not changed.");
+                // If/when supported: await _client.RenameTripAsync(TripId, EditName);
+                // Name = EditName;
+            }
+        }
+        catch (Exception ex)
+        {
+            ReportStatus?.Invoke($"Failed to save changes: {ex.Message}");
+            return;
+        }
+        finally
+        {
+            IsEditing = false;
+        }
     }
 
     [RelayCommand]
-    private async Task SetFinishedAsync(bool value)
+    private void CancelEdit()
     {
-        await _client.UpdateTripStatusAsync(TripId, value);
-        IsFinished = value;
+        // Revert edit buffer back to read-only state
+        EditName = Name;
+        EditDescription = Description;
+        EditIsFinished = IsFinished;
+        IsEditing = false;
+        ReportStatus?.Invoke("Edit cancelled.");
     }
 }

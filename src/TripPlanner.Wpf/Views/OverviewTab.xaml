@@ -1,29 +1,99 @@
 ﻿<UserControl x:Class="TripPlanner.Wpf.Views.OverviewTab"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <Grid Margin="8">
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="Auto"/>
-            <ColumnDefinition Width="*"/>
-            <ColumnDefinition Width="Auto"/>
-        </Grid.ColumnDefinitions>
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:TripPlanner.Wpf.Converters">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+        <conv:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVis"/>
+        <conv:MarkdownToFlowDocumentConverter x:Key="MdToDoc"/>
+        <Style x:Key="H1" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="24"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+        </Style>
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Padding" Value="12"/>
+            <Setter Property="Background" Value="{DynamicResource {x:Static SystemColors.ControlLightBrushKey}}"/>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Margin="12" >
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-        <TextBlock Text="Trip name:" FontWeight="SemiBold" Margin="0,0,12,0" VerticalAlignment="Center"/>
-        <TextBox Grid.Column="1" Text="{Binding Name}" IsReadOnly="True" />
 
-        <TextBlock Grid.Row="1" Text="Description:" FontWeight="SemiBold" Margin="0,8,12,0"/>
-        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}"
-                 AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" MinHeight="160"/>
-        <StackPanel Grid.Row="1" Grid.Column="2" Orientation="Vertical" Margin="12,0,0,0">
-            <Button Content="Save description" Command="{Binding SaveDescriptionCommand}" Margin="0,0,0,8" />
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <CheckBox x:Name="FinishedBox" Content="Finished" IsChecked="{Binding IsFinished}" Margin="0,0,12,0"/>
-                <Button Content="Apply" Command="{Binding SetFinishedCommand}" CommandParameter="{Binding IsChecked, ElementName=FinishedBox}"/>
-            </StackPanel>
+        <!-- ====================== READ-ONLY VIEW ====================== -->
+        <Grid Visibility="{Binding IsEditing, Converter={StaticResource InverseBoolToVis}}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- Trip name -->
+            <TextBlock Grid.Row="0" Text="{Binding Name}" Style="{StaticResource H1}" />
+
+            <!-- Markdown description preview -->
+            <Border Grid.Row="1" Style="{StaticResource Card}">
+                <FlowDocumentScrollViewer
+                    VerticalScrollBarVisibility="Auto"
+                    Document="{Binding Description, Converter={StaticResource MdToDoc}}"
+                    />
+            </Border>
+        </Grid>
+
+        <!-- Bottom-right Edit button (only visible in read-only mode) -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal"
+                    HorizontalAlignment="Right" Margin="0,12,0,0"
+                    Visibility="{Binding IsEditing, Converter={StaticResource InverseBoolToVis}}">
+            <Button Content="Edit"
+                    MinWidth="96"
+                    Command="{Binding EnterEditCommand}" />
         </StackPanel>
+
+        <!-- ====================== EDIT VIEW ====================== -->
+        <Grid Visibility="{Binding IsEditing, Converter={StaticResource BoolToVis}}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Edit Name -->
+            <StackPanel Grid.Row="0" Orientation="Vertical" Margin="0,0,0,8">
+                <TextBlock Text="Trip name" FontWeight="SemiBold" />
+                <TextBox Text="{Binding EditName, UpdateSourceTrigger=PropertyChanged}" />
+            </StackPanel>
+
+            <!-- Edit Description -->
+            <StackPanel Grid.Row="1" Orientation="Vertical">
+                <TextBlock Text="Description (Markdown)" FontWeight="SemiBold" />
+                <TextBox
+                    Text="{Binding EditDescription, UpdateSourceTrigger=PropertyChanged}"
+                    AcceptsReturn="True"
+                    TextWrapping="Wrap"
+                    VerticalScrollBarVisibility="Auto"
+                    Height="260"/>
+                <TextBlock Margin="0,6,0,0" Opacity="0.65" FontSize="11"
+                           Text="Tip: Use #, ##, ### for headings; - for lists."/>
+            </StackPanel>
+
+            <!-- Finished + Save/Cancel -->
+            <DockPanel Grid.Row="2" Margin="0,12,0,0">
+                <CheckBox DockPanel.Dock="Left"
+                          VerticalAlignment="Center"
+                          Content="Finished"
+                          IsChecked="{Binding EditIsFinished}"/>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="Save" MinWidth="96" Margin="0,0,8,0"
+                            Command="{Binding SaveEditCommand}"/>
+                    <Button Content="Cancel" MinWidth="96"
+                            Command="{Binding CancelEditCommand}"/>
+                </StackPanel>
+            </DockPanel>
+        </Grid>
     </Grid>
 </UserControl>
