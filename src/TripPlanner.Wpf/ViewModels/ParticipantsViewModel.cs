@@ -33,14 +33,14 @@ public sealed partial class ParticipantsViewModel : ObservableObject
 
         foreach (var p in list)
         {
-            // Read properties via reflection to tolerate your recent DTO change.
-            var pid          = GetString(p, "ParticipantId");
-            var displayName  = GetString(p, "DisplayName");
-            var isPlaceholder= GetBool(p,   "IsPlaceholder");
-            var isMe         = GetBool(p,   "IsMe");          // asserted by your tests
-            var isOrganizer  = GetBool(p,   "IsOrganizer");   // if missing -> false
-            var username     = GetNullableString(p, "Username");
-            var userId       = GetNullableString(p, "UserId");
+            // Be tolerant to DTO naming — read by reflection
+            var pid           = GetString(p, "ParticipantId");
+            var displayName   = GetString(p, "DisplayName");
+            var isPlaceholder = GetBool(p,   "IsPlaceholder");
+            var isMe          = GetBool(p,   "IsMe");          // validated by your tests
+            var isOrganizer   = GetBool(p,   "IsOrganizer");
+            var username      = GetNullableString(p, "Username");
+            var userId        = GetNullableString(p, "UserId");
 
             var row = new ParticipantRow(
                 pid: pid,
@@ -59,14 +59,15 @@ public sealed partial class ParticipantsViewModel : ObservableObject
 
         IsOrganizerMe = Items.Any(x => x.IsSelf && x.IsOrganizer);
 
-        // Set per-row permissions based on organizer status
         foreach (var r in Items) r.UpdatePermissions(IsOrganizerMe);
 
-        // Ordering: organizer first, then real users, then placeholders, then by name
-        var ordered = Items.OrderByDescending(x => x.IsOrganizer)
-                           .ThenBy(x => x.IsPlaceholder)
-                           .ThenBy(x => (x.Username ?? x.DisplayName))
-                           .ToList();
+        // Organizer first, then real users, then placeholders, then by name. Keep "Me" near top among non-organizers.
+        var ordered = Items
+            .OrderByDescending(x => x.IsOrganizer)
+            .ThenByDescending(x => x.IsSelf)
+            .ThenBy(x => x.IsPlaceholder)
+            .ThenBy(x => (x.Username ?? x.DisplayName))
+            .ToList();
 
         if (!ordered.SequenceEqual(Items))
         {
@@ -75,24 +76,27 @@ public sealed partial class ParticipantsViewModel : ObservableObject
         }
     }
 
-    // -------- Organizer-only actions (per your new rules): Rename (placeholders) & Remove (anyone but self)
-
+    // ---- Actions ----
+    // Organizer can rename placeholders; ANY user can rename himself (your requested change).
     [RelayCommand]
     private async Task RenameAsync(ParticipantRow row)
     {
-        if (!IsOrganizerMe || row is null || !row.IsPlaceholder) return;
+        if (row is null) return;
+        if (!(row.CanRename)) return;
         await _client.UpdateParticipantDisplayNameAsync(TripId, row.ParticipantId, row.DisplayName);
     }
 
+    // Organizer can remove anyone EXCEPT himself
     [RelayCommand]
     private async Task RemoveAsync(ParticipantRow row)
     {
-        if (!IsOrganizerMe || row is null || row.IsSelf) return; // organizer cannot remove himself
+        if (row is null) return;
+        if (!(row.CanRemove)) return;
         await _client.DeleteParticipantAsync(TripId, row.ParticipantId);
         Items.Remove(row);
     }
 
-    // ---- Helpers to read possibly changed DTOs safely (reflection)
+    // -------- helpers (reflection friendly) --------
     private static string GetString(object obj, string name)
         => obj.GetType().GetProperty(name, BindingFlags.Public | BindingFlags.Instance)
               ?.GetValue(obj)?.ToString() ?? string.Empty;
@@ -135,13 +139,13 @@ public sealed partial class ParticipantRow : ObservableObject
     public string? Username { get; }
     public string? UserId { get; }
 
-    // Calculated after VM learns if current user is organizer
+    // Derived / permissions
     [ObservableProperty] private bool _canRename;
     [ObservableProperty] private bool _canRemove;
 
     public bool IsRealUser => !IsPlaceholder;
 
-    public string RoleBadge =>
+    public string RoleText =>
         IsOrganizer ? "Organizer" :
         IsPlaceholder ? "Placeholder" : "User";
 
@@ -156,7 +160,9 @@ public sealed partial class ParticipantRow : ObservableObject
 
     public void UpdatePermissions(bool isOrganizerMe)
     {
-        CanRename = isOrganizerMe && IsPlaceholder; // organizer may rename placeholders
-        CanRemove = isOrganizerMe && !IsSelf;       // organizer may remove anyone except himself
+        // New rule: users can rename themselves; organizer can rename placeholders
+        CanRename = (IsSelf) || (isOrganizerMe && IsPlaceholder);
+        // Organizer may remove anyone except himself
+        CanRemove = isOrganizerMe && !IsSelf;
     }
 }

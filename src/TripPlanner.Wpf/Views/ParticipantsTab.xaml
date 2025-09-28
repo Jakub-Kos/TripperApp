@@ -4,73 +4,120 @@
              xmlns:conv="clr-namespace:TripPlanner.Wpf.Converters">
   <UserControl.Resources>
     <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+    <!-- bool -> !bool -->
     <conv:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
-    <!-- Simple pill badge style -->
+    <conv:StringNullOrEmptyToCollapsed x:Key="StringNullOrEmptyToCollapsed"/>
+    <!-- Simple pill style -->
     <Style x:Key="Pill" TargetType="Border">
       <Setter Property="Background" Value="#FFE8E8E8"/>
-      <Setter Property="Padding" Value="4,2"/>
+      <Setter Property="Padding" Value="6,2"/>
       <Setter Property="CornerRadius" Value="10"/>
       <Setter Property="Margin" Value="0,0,6,0"/>
+      <Setter Property="SnapsToDevicePixels" Value="True"/>
+    </Style>
+    <!-- Row card -->
+    <Style x:Key="RowCard" TargetType="Border">
+      <Setter Property="CornerRadius" Value="8"/>
+      <Setter Property="Padding" Value="8"/>
+      <Setter Property="Background" Value="{DynamicResource {x:Static SystemColors.ControlLightBrushKey}}"/>
+      <Setter Property="Margin" Value="0,4,0,4"/>
     </Style>
   </UserControl.Resources>
 
   <DockPanel Margin="10">
-
-    <!-- Header: Organizer info -->
+    <!-- Header -->
     <TextBlock DockPanel.Dock="Top"
                Text="{Binding OrganizerDisplay}"
                FontWeight="SemiBold"
                Margin="0,0,0,8"/>
 
-    <!-- Participants list, read-only for non-organizers -->
-    <ListView ItemsSource="{Binding Items}">
+    <!-- Column labels (no grid lines; just subtle labels) -->
+    <Grid DockPanel.Dock="Top" Margin="0,0,0,4">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="140"/>   <!-- Role / Me -->
+        <ColumnDefinition Width="200"/>   <!-- Username -->
+        <ColumnDefinition Width="240"/>   <!-- Display name -->
+        <ColumnDefinition Width="Auto"/>  <!-- Actions -->
+        <ColumnDefinition Width="40"/>    <!-- ? -->
+      </Grid.ColumnDefinitions>
+      <TextBlock Grid.Column="0" Text="Role" Opacity="0.6"/>
+      <TextBlock Grid.Column="1" Text="Username" Opacity="0.6"/>
+      <TextBlock Grid.Column="2" Text="Name" Opacity="0.6"/>
+      <TextBlock Grid.Column="3" Text="Actions" Opacity="0.6"/>
+      <TextBlock Grid.Column="4" Text="" />
+    </Grid>
+
+    <!-- List -->
+    <ListView ItemsSource="{Binding Items}" BorderThickness="0">
       <ListView.ItemTemplate>
         <DataTemplate>
-          <DockPanel LastChildFill="False" Margin="0,4">
+          <Border Style="{StaticResource RowCard}">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="140"/>
+                <ColumnDefinition Width="200"/>
+                <ColumnDefinition Width="240"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="40"/>
+              </Grid.ColumnDefinitions>
 
-            <!-- Right-side action buttons (organizer-only) -->
-            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right">
-              <Button Content="Remove"
-                      Visibility="{Binding CanRemove, Converter={StaticResource BoolToVis}}"
-                      Command="{Binding DataContext.RemoveCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                      CommandParameter="{Binding}"
-                      Margin="6,0,0,0"/>
-              <Button Content="Save name"
-                      Visibility="{Binding CanRename, Converter={StaticResource BoolToVis}}"
-                      Command="{Binding DataContext.RenameCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                      CommandParameter="{Binding}"
-                      Margin="6,0,0,0"/>
-            </StackPanel>
-
-            <!-- Left-side identity -->
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-              <!-- Badges -->
-              <Border Style="{StaticResource Pill}" Background="#FFDDEEFF"
-                      Visibility="{Binding IsOrganizer, Converter={StaticResource BoolToVis}}">
-                <TextBlock Text="Organizer" FontSize="11"/>
-              </Border>
-              <Border Style="{StaticResource Pill}">
-                <TextBlock Text="{Binding RoleBadge}" FontSize="11"/>
-              </Border>
-
-              <!-- Placeholder name: editable only if organizer -->
-              <TextBox Width="240" Margin="8,0,0,0"
-                       Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}"
-                       IsReadOnly="{Binding CanRename, Converter={StaticResource InverseBooleanConverter}}"
-                       Visibility="{Binding IsPlaceholder, Converter={StaticResource BoolToVis}}"/>
-
-              <!-- Real user: show username + optional display name -->
-              <StackPanel Orientation="Horizontal" Margin="8,0,0,0"
-                          Visibility="{Binding IsRealUser, Converter={StaticResource BoolToVis}}">
-                <TextBlock Text="{Binding DisplayPrimary}" FontWeight="SemiBold"/>
-                <TextBlock Text="{Binding DisplaySecondary, StringFormat=  •  {0}}" Foreground="Gray"/>
+              <!-- Column 0: Role + Me -->
+              <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                <!-- Single role pill (no duplicate organizer pills) -->
+                <Border Style="{StaticResource Pill}" Background="#FFDDEEFF">
+                  <TextBlock Text="{Binding RoleText}" FontSize="11"/>
+                </Border>
+                <!-- Me pill -->
+                <Border Style="{StaticResource Pill}" Background="#FFE4F8E4"
+                        Visibility="{Binding IsSelf, Converter={StaticResource BoolToVis}}">
+                  <TextBlock Text="Me" FontSize="11"/>
+                </Border>
               </StackPanel>
 
-              <!-- Technical id (dim) -->
-              <TextBlock Text="{Binding ParticipantId}" Foreground="Gray" Margin="12,0,0,0" VerticalAlignment="Center"/>
-            </StackPanel>
+              <!-- Column 1: Username (real users only) -->
+              <TextBlock Grid.Column="1"
+                         Text="{Binding Username}"
+                         FontWeight="SemiBold"
+                         VerticalAlignment="Center"
+                         Visibility="{Binding IsRealUser, Converter={StaticResource BoolToVis}}"/>
 
-          </DockPanel>
+              <!-- Column 2: Name -->
+              <!-- If CanRename -> editable; else read-only -->
+              <TextBox Grid.Column="2"
+                       Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}"
+                       IsReadOnly="{Binding CanRename, Converter={StaticResource InverseBooleanConverter}}"
+                       VerticalAlignment="Center"
+                       ToolTip="Display name shown to others"/>
+              <!-- If real user and there is a second name (DisplaySecondary), show it faint next to the editor -->
+              <TextBlock Grid.Column="2"
+                         Margin="8,20,0,0"
+                         Foreground="Gray"
+                         Text="{Binding DisplaySecondary}"
+                         Visibility="{Binding DisplaySecondary, Converter={StaticResource StringNullOrEmptyToCollapsed}}"/>
+
+              <!-- Column 3: Actions -->
+              <StackPanel Grid.Column="3" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                <Button Content="Save name"
+                        Margin="0,0,8,0"
+                        Visibility="{Binding CanRename, Converter={StaticResource BoolToVis}}"
+                        Command="{Binding DataContext.RenameCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                        CommandParameter="{Binding}"/>
+                <Button Content="Remove"
+                        Visibility="{Binding CanRemove, Converter={StaticResource BoolToVis}}"
+                        Command="{Binding DataContext.RemoveCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                        CommandParameter="{Binding}"/>
+              </StackPanel>
+
+              <!-- Column 4: ? (tooltip with GUID) -->
+              <Border Grid.Column="4" Width="24" Height="24" CornerRadius="12" Background="#FFF0F0F0"
+                      HorizontalAlignment="Center" VerticalAlignment="Center">
+                <TextBlock Text="?" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                <Border.ToolTip>
+                  <ToolTip Content="{Binding ParticipantId}" />
+                </Border.ToolTip>
+              </Border>
+            </Grid>
+          </Border>
         </DataTemplate>
       </ListView.ItemTemplate>
     </ListView>

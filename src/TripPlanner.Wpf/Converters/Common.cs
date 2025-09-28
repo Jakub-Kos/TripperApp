@@ -30,4 +30,12 @@ namespace TripPlanner.Wpf.Converters
                 ? Visibility.Visible : Visibility.Collapsed;
         public object ConvertBack(object v, Type t, object p, CultureInfo c) => Binding.DoNothing;
     }
+    
+    // string null/empty -> Collapsed else Visible
+    public sealed class StringNullOrEmptyToCollapsed : IValueConverter
+    {
+        public object Convert(object value, Type t, object p, CultureInfo c)
+            => string.IsNullOrWhiteSpace(value as string) ? Visibility.Collapsed : Visibility.Visible;
+        public object ConvertBack(object value, Type t, object p, CultureInfo c) => Binding.DoNothing;
+    }
 }
