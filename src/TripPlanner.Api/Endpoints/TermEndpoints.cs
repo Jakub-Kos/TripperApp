@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Mvc;
 using TripPlanner.Adapters.Persistence.Ef.Persistence.Db;
 using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Date;
 using TripPlanner.Api.Infrastructure.Validation;
@@ -9,6 +10,7 @@ namespace TripPlanner.Api.Endpoints;
 public static class TermEndpoints
 {
     public record ProposeTermRequest(string Start, string End); // YYYY-MM-DD
+    public record TermProxyVoteRequest(string ParticipantId);
 
     public static IEndpointRouteBuilder MapTermEndpoints(this IEndpointRouteBuilder v1)
     {
@@ -89,6 +91,37 @@ public static class TermEndpoints
             .Produces(StatusCodes.Status403Forbidden)
             .Produces(StatusCodes.Status401Unauthorized);
 
+        // Proxy vote on a term proposal (placeholder participant)
+        v1.MapPost("/trips/{tripId:guid}/term-proposals/{termId:guid}/votes/proxy", async (Guid tripId, Guid termId, [FromBody] TermProxyVoteRequest req, AppDbContext db, CancellationToken ct) =>
+            {
+                if (!Guid.TryParse(req.ParticipantId, out var participantId))
+                    return Results.BadRequest("Invalid participantId.");
+
+                var placeholder = await db.Participants.FirstOrDefaultAsync(p => p.TripId == tripId && p.ParticipantId == participantId && p.UserId == null, ct);
+                if (placeholder is null) return Results.BadRequest("Only placeholders can be proxied or participant not found.");
+
+                var term = await db.TermProposals.FirstOrDefaultAsync(t => t.TermProposalId == termId && t.TripId == tripId, ct);
+                if (term is null) return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Term proposal not found"));
+
+                var exists = await db.TermProposalVotes.AnyAsync(v => v.TermProposalId == termId && v.ParticipantId == participantId, ct);
+                if (!exists)
+                {
+                    db.TermProposalVotes.Add(new TermProposalVoteRecord
+                    {
+                        TermProposalId = termId,
+                        ParticipantId = participantId
+                    });
+                    await db.SaveChangesAsync(ct);
+                }
+                return Results.NoContent();
+            })
+            .WithTags("Dates")
+            .WithSummary("Proxy vote for a term proposal")
+            .WithDescription("Cast a vote on behalf of a placeholder participant for a specific term proposal.")
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status400BadRequest);
+
         // Remove a vote on a term proposal (self)
         v1.MapDelete("/trips/{tripId:guid}/term-proposals/{termId:guid}/votes", async (Guid tripId, Guid termId, AppDbContext db, System.Security.Claims.ClaimsPrincipal user, CancellationToken ct) =>
             {
@@ -119,6 +152,33 @@ public static class TermEndpoints
             .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
             .Produces(StatusCodes.Status403Forbidden)
             .Produces(StatusCodes.Status401Unauthorized);
+
+        // Proxy remove a vote on a term proposal (placeholder participant)
+        v1.MapDelete("/trips/{tripId:guid}/term-proposals/{termId:guid}/votes/proxy", async (Guid tripId, Guid termId, [FromBody] TermProxyVoteRequest req, AppDbContext db, CancellationToken ct) =>
+            {
+                if (!Guid.TryParse(req.ParticipantId, out var participantId))
+                    return Results.BadRequest("Invalid participantId.");
+
+                var placeholder = await db.Participants.FirstOrDefaultAsync(p => p.TripId == tripId && p.ParticipantId == participantId && p.UserId == null, ct);
+                if (placeholder is null) return Results.BadRequest("Only placeholders can be proxied or participant not found.");
+
+                var term = await db.TermProposals.FirstOrDefaultAsync(t => t.TermProposalId == termId && t.TripId == tripId, ct);
+                if (term is null) return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Term proposal not found"));
+
+                var vote = await db.TermProposalVotes.FirstOrDefaultAsync(v => v.TermProposalId == termId && v.ParticipantId == participantId, ct);
+                if (vote is not null)
+                {
+                    db.TermProposalVotes.Remove(vote);
+                    await db.SaveChangesAsync(ct);
+                }
+                return Results.NoContent();
+            })
+            .WithTags("Dates")
+            .WithSummary("Proxy remove vote for a term proposal")
+            .WithDescription("Remove a vote on behalf of a placeholder participant for a specific term proposal. Idempotent: returns 204 even if no vote existed.")
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status400BadRequest);
 
         // Delete a term proposal (creator or organizer)
         v1.MapDelete("/trips/{tripId:guid}/term-proposals/{termId:guid}", async (Guid tripId, Guid termId, AppDbContext db, System.Security.Claims.ClaimsPrincipal user, CancellationToken ct) =>

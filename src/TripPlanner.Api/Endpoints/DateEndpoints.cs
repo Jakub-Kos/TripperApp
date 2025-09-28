@@ -186,6 +186,39 @@ public static class DateEndpoints
             .Produces(StatusCodes.Status403Forbidden)
             .Produces(StatusCodes.Status401Unauthorized)
             .Produces(StatusCodes.Status400BadRequest);
+
+        // DELETE proxy vote for a specific date (placeholder participant)
+        v1.MapDelete("/trips/{tripId:guid}/date-votes/proxy", async (Guid tripId, [FromBody] DateProxyVoteRequest req, AppDbContext db, CancellationToken ct) =>
+            {
+                if (!DateOnly.TryParse(req.Date, out var date) || !Guid.TryParse(req.ParticipantId, out var participantId))
+                    return Results.BadRequest("Invalid inputs.");
+
+                var placeholder = await db.Participants.FirstOrDefaultAsync(
+                    p => p.TripId == tripId && p.ParticipantId == participantId && p.UserId == null, ct);
+                if (placeholder is null) return Results.BadRequest("Only placeholders can be proxied or participant not found.");
+
+                var trip = await db.Trips.FirstOrDefaultAsync(t => t.TripId == tripId, ct);
+                if (trip is null) return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip not found"));
+
+                var dateIso = date.ToString("yyyy-MM-dd");
+                var opt = await db.DateOptions.FirstOrDefaultAsync(o => o.TripId == tripId && o.DateIso == dateIso, ct);
+                if (opt is null) return Results.NoContent();
+
+                var vote = await db.DateVotes.FirstOrDefaultAsync(v => v.DateOptionId == opt.DateOptionId && v.ParticipantId == participantId, ct);
+                if (vote is not null)
+                {
+                    db.DateVotes.Remove(vote);
+                    await db.SaveChangesAsync(ct);
+                }
+                return Results.NoContent();
+            })
+            .WithTags("Dates")
+            .WithSummary("Proxy remove vote for a specific date")
+            .WithDescription("Remove a vote on behalf of a placeholder participant for a specific date (YYYY-MM-DD). Idempotent: returns 204 even if not voted.")
+            .Accepts<DateProxyVoteRequest>("application/json")
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status400BadRequest);
         
         return v1;
     }
