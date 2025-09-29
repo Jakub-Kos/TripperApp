@@ -1,12 +1,8 @@
 ﻿<UserControl x:Class="TripPlanner.Wpf.Views.ParticipantsTab"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:conv="clr-namespace:TripPlanner.Wpf.Converters">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <UserControl.Resources>
     <BooleanToVisibilityConverter x:Key="BoolToVis"/>
-    <!-- bool -> !bool -->
-    <conv:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
-    <conv:StringNullOrEmptyToCollapsed x:Key="StringNullOrEmptyToCollapsed"/>
     <!-- Simple pill style -->
     <Style x:Key="Pill" TargetType="Border">
       <Setter Property="Background" Value="#FFE8E8E8"/>
@@ -29,14 +25,22 @@
     <TextBlock DockPanel.Dock="Top"
                Text="{Binding OrganizerDisplay}"
                FontWeight="SemiBold"
-               Margin="0,0,0,8"/>
+               Margin="0,0,0,6"/>
 
-    <!-- Column labels (no grid lines; just subtle labels) -->
+    <!-- Organizer-only: Invite generation -->
+    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8"
+                Visibility="{Binding IsOrganizerMe, Converter={StaticResource BoolToVis}}">
+      <TextBlock Text="Invite code:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+      <TextBox Width="220" IsReadOnly="True" Text="{Binding InviteCode}" Margin="0,0,8,0"/>
+      <Button Content="Create invite" Command="{Binding CreateInviteCodeCommand}" />
+    </StackPanel>
+
+    <!-- Column labels (subtle; no grid lines) -->
     <Grid DockPanel.Dock="Top" Margin="0,0,0,4">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="140"/>   <!-- Role / Me -->
         <ColumnDefinition Width="200"/>   <!-- Username -->
-        <ColumnDefinition Width="240"/>   <!-- Display name -->
+        <ColumnDefinition Width="240"/>   <!-- Name (text or inline editor) -->
         <ColumnDefinition Width="Auto"/>  <!-- Actions -->
         <ColumnDefinition Width="40"/>    <!-- ? -->
       </Grid.ColumnDefinitions>
@@ -63,11 +67,9 @@
 
               <!-- Column 0: Role + Me -->
               <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                <!-- Single role pill (no duplicate organizer pills) -->
                 <Border Style="{StaticResource Pill}" Background="#FFDDEEFF">
                   <TextBlock Text="{Binding RoleText}" FontSize="11"/>
                 </Border>
-                <!-- Me pill -->
                 <Border Style="{StaticResource Pill}" Background="#FFE4F8E4"
                         Visibility="{Binding IsSelf, Converter={StaticResource BoolToVis}}">
                   <TextBlock Text="Me" FontSize="11"/>
@@ -82,33 +84,111 @@
                          Visibility="{Binding IsRealUser, Converter={StaticResource BoolToVis}}"/>
 
               <!-- Column 2: Name -->
-              <!-- If CanRename -> editable; else read-only -->
-              <TextBox Grid.Column="2"
-                       Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}"
-                       IsReadOnly="{Binding CanRename, Converter={StaticResource InverseBooleanConverter}}"
-                       VerticalAlignment="Center"
-                       ToolTip="Display name shown to others"/>
-              <!-- If real user and there is a second name (DisplaySecondary), show it faint next to the editor -->
+              <!-- View mode: pure text using NameForView (falls back to Username if DisplayName empty) -->
               <TextBlock Grid.Column="2"
-                         Margin="8,20,0,0"
-                         Foreground="Gray"
-                         Text="{Binding DisplaySecondary}"
-                         Visibility="{Binding DisplaySecondary, Converter={StaticResource StringNullOrEmptyToCollapsed}}"/>
+                         Text="{Binding NameForView}"
+                         VerticalAlignment="Center">
+                <TextBlock.Style>
+                  <Style TargetType="TextBlock">
+                    <Setter Property="Visibility" Value="Visible"/>
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding IsEditingName}" Value="True">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </TextBlock.Style>
+              </TextBlock>
+
+              <!-- Edit mode: inline editor for DisplayName -->
+              <TextBox Grid.Column="2"
+                       Text="{Binding EditDisplayName, UpdateSourceTrigger=PropertyChanged}"
+                       VerticalAlignment="Center">
+                <TextBox.Style>
+                  <Style TargetType="TextBox">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding IsEditingName}" Value="True">
+                        <Setter Property="Visibility" Value="Visible"/>
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </TextBox.Style>
+              </TextBox>
 
               <!-- Column 3: Actions -->
               <StackPanel Grid.Column="3" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                <Button Content="Save name"
-                        Margin="0,0,8,0"
-                        Visibility="{Binding CanRename, Converter={StaticResource BoolToVis}}"
-                        Command="{Binding DataContext.RenameCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                        CommandParameter="{Binding}"/>
+                <!-- Edit button (when allowed and not editing) -->
+                <Button Content="Edit name" Margin="0,0,8,0">
+                  <Button.Style>
+                    <Style TargetType="Button">
+                      <Setter Property="Visibility" Value="Collapsed"/>
+                      <Style.Triggers>
+                        <MultiDataTrigger>
+                          <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding CanRename}" Value="True"/>
+                            <Condition Binding="{Binding IsEditingName}" Value="False"/>
+                          </MultiDataTrigger.Conditions>
+                          <Setter Property="Visibility" Value="Visible"/>
+                        </MultiDataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </Button.Style>
+                  <Button.Command>
+                    <Binding Path="DataContext.BeginEditNameCommand" RelativeSource="{RelativeSource AncestorType=UserControl}"/>
+                  </Button.Command>
+                  <Button.CommandParameter>
+                    <Binding />
+                  </Button.CommandParameter>
+                </Button>
+
+                <!-- Save / Cancel (editing only) -->
+                <Button Content="Save" Margin="0,0,8,0">
+                  <Button.Style>
+                    <Style TargetType="Button">
+                      <Setter Property="Visibility" Value="Collapsed"/>
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsEditingName}" Value="True">
+                          <Setter Property="Visibility" Value="Visible"/>
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </Button.Style>
+                  <Button.Command>
+                    <Binding Path="DataContext.SaveEditNameCommand" RelativeSource="{RelativeSource AncestorType=UserControl}"/>
+                  </Button.Command>
+                  <Button.CommandParameter>
+                    <Binding />
+                  </Button.CommandParameter>
+                </Button>
+
+                <Button Content="Cancel" Margin="0,0,8,0">
+                  <Button.Style>
+                    <Style TargetType="Button">
+                      <Setter Property="Visibility" Value="Collapsed"/>
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsEditingName}" Value="True">
+                          <Setter Property="Visibility" Value="Visible"/>
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </Button.Style>
+                  <Button.Command>
+                    <Binding Path="DataContext.CancelEditNameCommand" RelativeSource="{RelativeSource AncestorType=UserControl}"/>
+                  </Button.Command>
+                  <Button.CommandParameter>
+                    <Binding />
+                  </Button.CommandParameter>
+                </Button>
+
+                <!-- Remove (organizer-only, not self) -->
                 <Button Content="Remove"
                         Visibility="{Binding CanRemove, Converter={StaticResource BoolToVis}}"
                         Command="{Binding DataContext.RemoveCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                         CommandParameter="{Binding}"/>
               </StackPanel>
 
-              <!-- Column 4: ? (tooltip with GUID) -->
+              <!-- Column 4: ? tooltip with GUID -->
               <Border Grid.Column="4" Width="24" Height="24" CornerRadius="12" Background="#FFF0F0F0"
                       HorizontalAlignment="Center" VerticalAlignment="Center">
                 <TextBlock Text="?" HorizontalAlignment="Center" VerticalAlignment="Center" />

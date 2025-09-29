@@ -17,14 +17,17 @@ public sealed partial class ParticipantsViewModel : ObservableObject
     [ObservableProperty] private string _tripId = "";
     public ObservableCollection<ParticipantRow> Items { get; } = new();
 
-    // Current-user perspective
     [ObservableProperty] private bool _isOrganizerMe;
     [ObservableProperty] private string _organizerDisplay = "Organizer: —";
+
+    // Organizer-only: invite code generation (back in UI)
+    [ObservableProperty] private string _inviteCode = "";
 
     public async Task LoadAsync(string tripId)
     {
         TripId = tripId;
         Items.Clear();
+        InviteCode = "";
         IsOrganizerMe = false;
         OrganizerDisplay = "Organizer: —";
 
@@ -33,11 +36,10 @@ public sealed partial class ParticipantsViewModel : ObservableObject
 
         foreach (var p in list)
         {
-            // Be tolerant to DTO naming — read by reflection
             var pid           = GetString(p, "ParticipantId");
             var displayName   = GetString(p, "DisplayName");
             var isPlaceholder = GetBool(p,   "IsPlaceholder");
-            var isMe          = GetBool(p,   "IsMe");          // validated by your tests
+            var isMe          = GetBool(p,   "IsMe");
             var isOrganizer   = GetBool(p,   "IsOrganizer");
             var username      = GetNullableString(p, "Username");
             var userId        = GetNullableString(p, "UserId");
@@ -61,7 +63,7 @@ public sealed partial class ParticipantsViewModel : ObservableObject
 
         foreach (var r in Items) r.UpdatePermissions(IsOrganizerMe);
 
-        // Organizer first, then real users, then placeholders, then by name. Keep "Me" near top among non-organizers.
+        // sort: organizer, me, real users, placeholders, then by name
         var ordered = Items
             .OrderByDescending(x => x.IsOrganizer)
             .ThenByDescending(x => x.IsSelf)
@@ -76,30 +78,73 @@ public sealed partial class ParticipantsViewModel : ObservableObject
         }
     }
 
-    // ---- Actions ----
-    // Organizer can rename placeholders; ANY user can rename himself (your requested change).
+    // ======= Name editing flow (text until user clicks "Edit name") =======
+
     [RelayCommand]
-    private async Task RenameAsync(ParticipantRow row)
+    private void BeginEditName(ParticipantRow row)
     {
-        if (row is null) return;
-        if (!(row.CanRename)) return;
-        if (row.IsSelf && !row.IsPlaceholder)
-            await _client.UpdateMyParticipantDisplayNameAsync(TripId, row.DisplayName);
-        else
-            await _client.UpdateParticipantDisplayNameAsync(TripId, row.ParticipantId, row.DisplayName);
+        if (row is null || !row.CanRename) return;
+        row.EditDisplayName = row.DisplayName; // seed with current
+        row.IsEditingName = true;
     }
 
-    // Organizer can remove anyone EXCEPT himself
+    [RelayCommand]
+    private async Task SaveEditNameAsync(ParticipantRow row)
+    {
+        if (row is null || !row.CanRename) return;
+        var newName = row.EditDisplayName?.Trim() ?? "";
+        if (string.IsNullOrWhiteSpace(newName) || newName == row.DisplayName)
+        {
+            row.IsEditingName = false;
+            return;
+        }
+
+        try
+        {
+            if (row.IsSelf && !row.IsPlaceholder)
+                await _client.UpdateMyParticipantDisplayNameAsync(TripId, newName);
+            else
+                await _client.UpdateParticipantDisplayNameAsync(TripId, row.ParticipantId, newName);
+
+            row.DisplayName = newName;     // triggers NameForView re-eval
+        }
+        catch (Exception)
+        {
+            // swallow to avoid app crash; optionally could expose a Status property
+        }
+        finally
+        {
+            row.IsEditingName = false;
+        }
+    }
+
+    [RelayCommand]
+    private void CancelEditName(ParticipantRow row)
+    {
+        if (row is null) return;
+        row.IsEditingName = false;
+        row.EditDisplayName = row.DisplayName;
+    }
+
+    // Organizer can remove anyone except himself
     [RelayCommand]
     private async Task RemoveAsync(ParticipantRow row)
     {
-        if (row is null) return;
-        if (!(row.CanRemove)) return;
+        if (row is null || !row.CanRemove) return;
         await _client.DeleteParticipantAsync(TripId, row.ParticipantId);
         Items.Remove(row);
     }
 
-    // -------- helpers (reflection friendly) --------
+    // Organizer: Create invite code
+    [RelayCommand]
+    private async Task CreateInviteCodeAsync()
+    {
+        if (!IsOrganizerMe) return;
+        var inv = await _client.CreateInviteAsync(TripId);
+        if (inv.HasValue) InviteCode = inv.Value.code;
+    }
+
+    // -------- helpers (reflection tolerant) --------
     private static string GetString(object obj, string name)
         => obj.GetType().GetProperty(name, BindingFlags.Public | BindingFlags.Instance)
               ?.GetValue(obj)?.ToString() ?? string.Empty;
@@ -131,6 +176,7 @@ public sealed partial class ParticipantRow : ObservableObject
         Username = string.IsNullOrWhiteSpace(username) ? null : username;
         UserId = string.IsNullOrWhiteSpace(userId) ? null : userId;
         IsSelf = isSelf;
+        _editDisplayName = displayName;
     }
 
     public string ParticipantId { get; }
@@ -142,9 +188,13 @@ public sealed partial class ParticipantRow : ObservableObject
     public string? Username { get; }
     public string? UserId { get; }
 
-    // Derived / permissions
+    // Permissions (computed)
     [ObservableProperty] private bool _canRename;
     [ObservableProperty] private bool _canRemove;
+
+    // Inline-edit state
+    [ObservableProperty] private bool _isEditingName;
+    [ObservableProperty] private string _editDisplayName;
 
     public bool IsRealUser => !IsPlaceholder;
 
@@ -152,19 +202,16 @@ public sealed partial class ParticipantRow : ObservableObject
         IsOrganizer ? "Organizer" :
         IsPlaceholder ? "Placeholder" : "User";
 
-    public string DisplayPrimary =>
-        IsPlaceholder ? DisplayName :
-        !string.IsNullOrWhiteSpace(Username) ? Username! : DisplayName;
+    // Fallback: if user has no display name, show username in the Name column
+    public string NameForView => string.IsNullOrWhiteSpace(DisplayName) ? (Username ?? "") : DisplayName;
 
-    public string? DisplaySecondary =>
-        IsPlaceholder ? null :
-        (!string.IsNullOrWhiteSpace(DisplayName) && !string.Equals(DisplayName, Username, StringComparison.OrdinalIgnoreCase))
-            ? DisplayName : null;
+    // When DisplayName changes, also refresh NameForView binding
+    partial void OnDisplayNameChanged(string value) => OnPropertyChanged(nameof(NameForView));
 
     public void UpdatePermissions(bool isOrganizerMe)
     {
-        // New rule: users can rename themselves; organizer can rename placeholders
-        CanRename = (IsSelf) || (isOrganizerMe && IsPlaceholder);
+        // Users may rename themselves; organizer may rename placeholders
+        CanRename = IsSelf || (isOrganizerMe && IsPlaceholder);
         // Organizer may remove anyone except himself
         CanRemove = isOrganizerMe && !IsSelf;
     }
