@@ -167,6 +167,24 @@ public sealed class TripPlannerClient(HttpClient http) : ITripPlannerClient
         return await res.Content.ReadFromJsonAsync<IReadOnlyList<DestinationProposalDto>>(cancellationToken: ct);
     }
 
+    public async Task<Dictionary<string, object>?> GetDestinationAsync(string tripId, string destinationId, CancellationToken ct = default)
+    {
+        var res = await http.GetAsync($"/api/v1/trips/{tripId}/destinations/{destinationId}", ct);
+        if (res.StatusCode == HttpStatusCode.NotFound) return null;
+        res.EnsureSuccessStatusCode();
+        // The API returns voters array; adapt to expected property name "ParticipantIds"
+        using var stream = await res.Content.ReadAsStreamAsync(ct);
+        using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
+        var root = doc.RootElement;
+        var dict = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+        if (root.TryGetProperty("voters", out var voters))
+        {
+            var arr = voters.EnumerateArray().Select(e => e.GetString() ?? string.Empty).ToArray();
+            dict["ParticipantIds"] = arr;
+        }
+        return dict;
+    }
+
     public async Task<string?> ProposeDestinationAsync(string tripId, ProposeDestinationRequest request, CancellationToken ct = default)
     {
         var res = await http.PostAsJsonAsync($"/api/v1/trips/{tripId}/destinations", request, ct);
@@ -214,6 +232,57 @@ public sealed class TripPlannerClient(HttpClient http) : ITripPlannerClient
             throw new HttpRequestException($"Vote failed: {(int)res.StatusCode} {res.ReasonPhrase}\n{body}");
         }
         return true;
+    }
+
+    public async Task<bool> UnvoteDestinationAsync(string tripId, string destinationId, CancellationToken ct = default)
+    {
+        var res = await http.DeleteAsync($"/api/v1/trips/{tripId}/destinations/{destinationId}/votes", ct);
+        if (res.StatusCode == HttpStatusCode.NotFound) return false;
+        if (res.StatusCode == HttpStatusCode.NoContent) return true;
+        await ThrowIfError(res, "Unvote failed.", ct);
+        return false;
+    }
+
+    public async Task<bool> ProxyVoteDestinationAsync(string tripId, string destinationId, string participantId, CancellationToken ct = default)
+    {
+        var res = await http.PostAsJsonAsync($"/api/v1/trips/{tripId}/destinations/{destinationId}/votes/proxy", new { participantId }, ct);
+        if (res.StatusCode == HttpStatusCode.NotFound) return false;
+        if (res.StatusCode == HttpStatusCode.NoContent) return true;
+        await ThrowIfError(res, "Proxy vote failed.", ct);
+        return false;
+    }
+
+    public async Task<bool> ProxyUnvoteDestinationAsync(string tripId, string destinationId, string participantId, CancellationToken ct = default)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Delete, $"/api/v1/trips/{tripId}/destinations/{destinationId}/votes/proxy")
+        {
+            Content = JsonContent.Create(new { participantId })
+        };
+        var res = await http.SendAsync(req, ct);
+        if (res.StatusCode == HttpStatusCode.NotFound) return false;
+        if (res.StatusCode == HttpStatusCode.NoContent) return true;
+        await ThrowIfError(res, "Proxy unvote failed.", ct);
+        return false;
+    }
+
+    public async Task<bool> UpdateDestinationAsync(string tripId, string destinationId, UpdateDestinationRequest request, CancellationToken ct = default)
+    {
+        var res = await http.PatchAsJsonAsync($"/api/v1/trips/{tripId}/destinations/{destinationId}", request, ct);
+        if (res.StatusCode == HttpStatusCode.NotFound) return false;
+        if (res.StatusCode == HttpStatusCode.NoContent) return true;
+        if (res.StatusCode == HttpStatusCode.Forbidden) return false;
+        await ThrowIfError(res, "Update destination failed.", ct);
+        return false;
+    }
+
+    public async Task<bool> DeleteDestinationAsync(string tripId, string destinationId, CancellationToken ct = default)
+    {
+        var res = await http.DeleteAsync($"/api/v1/trips/{tripId}/destinations/{destinationId}", ct);
+        if (res.StatusCode == HttpStatusCode.NotFound) return false;
+        if (res.StatusCode == HttpStatusCode.NoContent) return true;
+        if (res.StatusCode == HttpStatusCode.Forbidden) return false;
+        await ThrowIfError(res, "Delete destination failed.", ct);
+        return false;
     }
 
     public async Task<string?> GetTripDescriptionAsync(string tripId, CancellationToken ct = default)

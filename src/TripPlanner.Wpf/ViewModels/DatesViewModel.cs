@@ -311,10 +311,7 @@ public sealed partial class DatesViewModel : ObservableObject
 public sealed record DateAvailability(string Date, string[] ParticipantIds);
 public sealed record TermRow(string TermId, string Start, string End, int Votes, bool IsChosen);
 
-public sealed record VoterOption(string? ParticipantId, string Label, bool IsMe)
-{
-    public override string ToString() => Label;
-}
+
 
 public partial class DayCell : ObservableObject
 {

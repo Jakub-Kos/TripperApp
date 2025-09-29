@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Mvc;
 using TripPlanner.Adapters.Persistence.Ef.Persistence.Db;
 using TripPlanner.Adapters.Persistence.Ef.Persistence.Models.Destination;
 using TripPlanner.Api.Infrastructure;
@@ -33,6 +34,36 @@ public static class DestinationEndpoints
             .Produces(StatusCodes.Status204NoContent)
             .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
 
+        // Unvote self for destination
+        v1.MapDelete("/trips/{tripId:guid}/destinations/{destinationId:guid}/votes",
+                async (Guid tripId, Guid destinationId, System.Security.Claims.ClaimsPrincipal user, AppDbContext db, CancellationToken ct) =>
+                {
+                    var sub = user.FindFirst("sub")?.Value ?? user.FindFirst("nameid")?.Value;
+                    if (!Guid.TryParse(sub, out var me)) return Results.Unauthorized();
+
+                    // Find participant for current user in the trip
+                    var participant = await db.Participants.FirstOrDefaultAsync(p => p.TripId == tripId && p.UserId == me, ct);
+                    if (participant is null)
+                    {
+                        // Not a participant → treat as not found to avoid information leak
+                        return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip or destination not found"));
+                    }
+
+                    var vote = await db.DestinationVotes.FirstOrDefaultAsync(v => v.DestinationId == destinationId && v.ParticipantId == participant.ParticipantId, ct);
+                    if (vote is not null)
+                    {
+                        db.DestinationVotes.Remove(vote);
+                        await db.SaveChangesAsync(ct);
+                    }
+
+                    return Results.NoContent();
+                })
+            .WithTags("Destinations")
+            .WithSummary("Remove own vote from destination")
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status401Unauthorized);
+
         v1.MapPost("/trips/{tripId:guid}/destinations/{destinationId:guid}/votes/proxy",
                 async (Guid tripId, Guid destinationId, DestinationProxyVoteRequest req, AppDbContext db, CancellationToken ct) =>
                 {
@@ -62,6 +93,31 @@ public static class DestinationEndpoints
             .Accepts<DestinationProxyVoteRequest>("application/json")
             .Produces(StatusCodes.Status204NoContent)
             .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status400BadRequest);
+
+        // Proxy unvote for destination (placeholder only)
+        v1.MapDelete("/trips/{tripId:guid}/destinations/{destinationId:guid}/votes/proxy",
+                async (Guid tripId, Guid destinationId, [FromBody] DestinationProxyVoteRequest req, AppDbContext db, CancellationToken ct) =>
+                {
+                    if (!Guid.TryParse(req.ParticipantId, out var participantId))
+                        return Results.BadRequest("Invalid ParticipantId.");
+
+                    var placeholder = await db.Participants.FirstOrDefaultAsync(
+                        p => p.TripId == tripId && p.ParticipantId == participantId && p.UserId == null, ct);
+                    if (placeholder is null) return Results.BadRequest("Only placeholders can be proxied or participant not found.");
+
+                    var vote = await db.DestinationVotes.FirstOrDefaultAsync(v => v.DestinationId == destinationId && v.ParticipantId == participantId, ct);
+                    if (vote is not null)
+                    {
+                        db.DestinationVotes.Remove(vote);
+                        await db.SaveChangesAsync(ct);
+                    }
+                    return Results.NoContent();
+                })
+            .WithTags("Destinations")
+            .WithSummary("Proxy unvote for destination")
+            .Accepts<DestinationProxyVoteRequest>("application/json")
+            .Produces(StatusCodes.Status204NoContent)
             .Produces(StatusCodes.Status400BadRequest);
         
         v1.MapGet("/trips/{tripId}/destinations",
@@ -147,6 +203,52 @@ public static class DestinationEndpoints
             .Accepts<ProposeDestinationRequest>("application/json")
             .Produces(StatusCodes.Status201Created)
             .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest);
+            
+        // Update destination (title/description/images). Only creator or organizer.
+        v1.MapPatch("/trips/{tripId:guid}/destinations/{destinationId:guid}",
+                async (Guid tripId, Guid destinationId, UpdateDestinationRequest req, System.Security.Claims.ClaimsPrincipal user, AppDbContext db, CancellationToken ct) =>
+                {
+                    var sub = user.FindFirst("sub")?.Value ?? user.FindFirst("nameid")?.Value;
+                    if (!Guid.TryParse(sub, out var me)) return Results.Unauthorized();
+
+                    var dest = await db.Destinations
+                        .Include(d => d.Trip)
+                        .Include(d => d.Images)
+                        .FirstOrDefaultAsync(d => d.TripId == tripId && d.DestinationId == destinationId, ct);
+                    if (dest is null)
+                        return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip or destination not found"));
+
+                    if (dest.CreatedByUserId != me && dest.Trip.OrganizerId != me)
+                        return Results.Forbid();
+
+                    dest.Title = req.Title;
+                    dest.Description = req.Description;
+
+                    // Sync images: replace with provided list
+                    var currentUrls = dest.Images.Select(i => i.Url).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    var newUrls = (req.ImageUrls ?? Array.Empty<string>()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                    // Remove images not in new list
+                    foreach (var img in dest.Images.Where(i => !newUrls.Contains(i.Url)).ToList())
+                        db.DestinationImages.Remove(img);
+
+                    // Add missing
+                    foreach (var url in newUrls.Where(u => !currentUrls.Contains(u)))
+                        db.DestinationImages.Add(new DestinationImageRecord { DestinationId = destinationId, Url = url });
+
+                    await db.SaveChangesAsync(ct);
+                    return Results.NoContent();
+                })
+            .AddEndpointFilter(new ValidationFilter<UpdateDestinationRequest>())
+            .WithTags("Destinations")
+            .WithSummary("Update a destination proposal")
+            .WithDescription("Updates title, optional description and image URLs. Only creator or organizer can update.")
+            .Accepts<UpdateDestinationRequest>("application/json")
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status403Forbidden)
+            .Produces(StatusCodes.Status401Unauthorized)
             .Produces<ErrorResponse>(StatusCodes.Status400BadRequest);
         
         // Upload images to a destination proposal (png/jpeg), max 10 per destination

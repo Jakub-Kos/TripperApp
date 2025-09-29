@@ -1,11 +1,11 @@
 ﻿using System;
 using System.Collections.ObjectModel;
-using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Threading.Tasks;
+using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Microsoft.Win32;
 using TripPlanner.Client.Abstractions;
 using TripPlanner.Core.Contracts.Contracts.V1.Destinations;
 
@@ -17,175 +17,217 @@ public sealed partial class DestinationsViewModel : ObservableObject
     public DestinationsViewModel(ITripPlannerClient client) => _client = client;
 
     [ObservableProperty] private string _tripId = "";
+    public ObservableCollection<VoterOption> VoterOptions { get; } = new();
+    [ObservableProperty] private VoterOption? _selectedVoter;
 
-    public ObservableCollection<DestinationRow> Items { get; } = new();
-
-    [ObservableProperty] private string _newTitle = "";
-    [ObservableProperty] private string? _newDescription;
-    [ObservableProperty] private string _proxyParticipantId = "";
+    public ObservableCollection<DestinationCard> Items { get; } = new();
 
     public async Task LoadAsync(string tripId)
     {
         TripId = tripId;
-        await ReloadAll();
+        await RefreshVotersAsync();
+        await RefreshDestinationsAsync();
     }
 
-    private async Task ReloadAll()
+    private async Task RefreshVotersAsync()
+    {
+        VoterOptions.Clear();
+        // Everyone can vote as placeholders – list participants and pick placeholders.
+        var parts = await _client.ListParticipantsAsync(TripId);
+        VoterOptions.Add(new VoterOption(null, "Me", true)); // self
+        if (parts is not null)
+        {
+            foreach (var p in parts)
+            {
+                var isPlaceholder = GetBool(p, "IsPlaceholder");
+                if (!isPlaceholder) continue;
+                VoterOptions.Add(new VoterOption(
+                    GetString(p, "ParticipantId"),
+                    $"Placeholder: {GetString(p, "DisplayName")}",
+                    false));
+            }
+        }
+        SelectedVoter = VoterOptions.FirstOrDefault();
+    }
+
+    public async Task RefreshDestinationsAsync()
     {
         Items.Clear();
 
-        var list = await _client.GetDestinationsAsync(TripId);
+        // GET /api/v1/trips/{tripId}/destinations
+        var list = await _client.GetDestinationsAsync(TripId); // returns DestinationProposalDto[]
         if (list is null) return;
+
+        int maxVotes = 0;
+
         foreach (var d in list)
         {
-            var row = DestinationRow.FromDto(d);
-            // Preload images from DTO if available
-            row.Images.Clear();
-            if (d.ImageUrls is not null)
+            var id = GetString(d, "DestinationId");
+            var title = GetString(d, "Title");
+            var desc = GetNullableString(d, "Description") ?? "";
+            var votes = GetInt(d, "Votes");
+            var imageUrls = GetStringArray(d, "ImageUrls") ?? Array.Empty<string>();
+
+            var card = new DestinationCard
             {
-                foreach (var url in d.ImageUrls)
-                {
-                    var fileName = System.IO.Path.GetFileName(url ?? string.Empty);
-                    row.Images.Add(new ImageRow(imageId: url ?? string.Empty, fileName: fileName, url: url));
-                }
+                DestinationId = id,
+                Name = title,
+                Description = desc,
+                VoteCount = votes,
+                ImageUrl = imageUrls.FirstOrDefault()
+            };
+
+            Items.Add(card);
+            maxVotes = Math.Max(maxVotes, votes);
+        }
+
+        // mark most-voted
+        foreach (var it in Items)
+            it.IsMostVoted = it.VoteCount == maxVotes && maxVotes > 0;
+
+        // fetch who voted for each (detail endpoint includes participantIds)
+        foreach (var it in Items)
+        {
+            try
+            {
+                var detail = await _client.GetDestinationAsync(TripId, it.DestinationId);
+                it.VoterParticipantIds = GetStringArray(detail, "ParticipantIds") ?? Array.Empty<string>();
             }
-            Items.Add(row);
+            catch { /* non-fatal; leave empty */ }
+        }
+
+        RecomputeSelectedFlags();
+
+        // trailing "+" add card
+        Items.Add(DestinationCard.CreateAddCard());
+    }
+
+    partial void OnSelectedVoterChanged(VoterOption? oldValue) => RecomputeSelectedFlags();
+
+    private void RecomputeSelectedFlags()
+    {
+        var pid = SelectedVoter?.ParticipantId;
+        foreach (var it in Items)
+        {
+            if (it.IsAddNew) continue;
+            it.IsSelectedVoterVoted = !string.IsNullOrWhiteSpace(pid) && it.VoterParticipantIds.Contains(pid);
         }
     }
 
-    // Kept for compatibility; now images are part of the DTO, so this just ensures collection matches current row state.
-    private Task ReloadImages(DestinationRow row)
-    {
-        // No separate API in ITripPlannerClient for destination images; they come with GetDestinationsAsync.
-        return Task.CompletedTask;
-    }
+    // --- Commands ---
 
     [RelayCommand]
-    private async Task ProposeAsync()
+    private async Task ToggleVoteAsync(DestinationCard? card)
     {
-        if (string.IsNullOrWhiteSpace(NewTitle)) return;
-        var req = new ProposeDestinationRequest(NewTitle, NewDescription, Array.Empty<string>());
-        await _client.ProposeDestinationAsync(TripId, req);
-        NewTitle = ""; NewDescription = null;
-        await ReloadAll();
-    }
+        if (card is null || card.IsAddNew) return;
 
-    [RelayCommand]
-    private async Task VoteSelfAsync(DestinationRow row)
-    {
-        // Backend uses current user identity; body is ignored by API but required by client signature
-        await _client.VoteDestinationAsync(TripId, row.DestinationId, new VoteDestinationRequest(Guid.Empty));
-        await RefreshRow(row);
-    }
-
-    [RelayCommand]
-    private async Task VoteProxyAsync(DestinationRow row)
-    {
-        // ITripPlannerClient currently has no proxy vote method for destinations.
-        // This command is a no-op if no participant id is provided.
-        if (string.IsNullOrWhiteSpace(ProxyParticipantId)) return;
-        // TODO: If proxy voting client method is introduced, wire it here.
-        // For now, just refresh list so UI stays consistent.
-        await RefreshRow(row);
-    }
-
-    [RelayCommand]
-    private async Task ChooseAsync(DestinationRow row)
-    {
-        // Choosing a destination is not exposed in ITripPlannerClient; perform full reload.
-        await ReloadAll();
-    }
-
-    [RelayCommand]
-    private async Task DeleteAsync(DestinationRow row)
-    {
-        // Deleting a destination is not exposed in ITripPlannerClient; just remove locally for now.
-        Items.Remove(row);
-        await Task.CompletedTask;
-    }
-
-    [RelayCommand]
-    private async Task UploadImageAsync(DestinationRow row)
-    {
-        // Image upload is not exposed in ITripPlannerClient; keep the dialog for UX but do nothing.
-        var dlg = new OpenFileDialog
+        if (SelectedVoter?.ParticipantId is null)
         {
-            Filter = "Images|*.png;*.jpg;*.jpeg;*.webp;*.gif;*.bmp|All files|*.*",
-            Multiselect = false
-        };
-        if (dlg.ShowDialog() != true) return;
-        // No API -> no upload; simply refresh.
-        await ReloadImages(row);
-    }
-
-    private async Task RefreshRow(DestinationRow row)
-    {
-        // Re-fetch list and replace the row
-        var list = await _client.GetDestinationsAsync(TripId);
-        var fresh = list?.FirstOrDefault(d => d.DestinationId.ToString("D") == row.DestinationId);
-        if (fresh is null) { await ReloadAll(); return; }
-
-        var idx = Items.IndexOf(row);
-        var updated = DestinationRow.FromDto(fresh);
-        updated.Images.Clear();
-        if (fresh.ImageUrls is not null)
-        {
-            foreach (var url in fresh.ImageUrls)
+            if (card.IsSelectedVoterVoted)
             {
-                var fileName = System.IO.Path.GetFileName(url ?? string.Empty);
-                updated.Images.Add(new ImageRow(imageId: url ?? string.Empty, fileName: fileName, url: url));
+                // DELETE self vote
+                await _client.UnvoteDestinationAsync(TripId, card.DestinationId);
+            }
+            else
+            {
+                // POST self vote
+                await _client.VoteDestinationAsync(TripId, card.DestinationId, new VoteDestinationRequest(Guid.Empty));
             }
         }
-        Items[idx] = updated;
+        else
+        {
+            var pid = SelectedVoter.ParticipantId;
+            if (card.IsSelectedVoterVoted)
+            {
+                await _client.ProxyUnvoteDestinationAsync(TripId, card.DestinationId, pid);
+            }
+            else
+            {
+                await _client.ProxyVoteDestinationAsync(TripId, card.DestinationId, pid);
+            }
+        }
+
+        await RefreshDestinationsAsync();
     }
 
-    private static string GuessMimeType(string fileName)
+    [RelayCommand]
+    private async Task AddNewAsync()
     {
-        var ext = Path.GetExtension(fileName).ToLowerInvariant();
-        return ext switch
+        var vm = new DestinationEditViewModel(_client)
         {
-            ".png" => "image/png",
-            ".jpg" => "image/jpeg",
-            ".jpeg" => "image/jpeg",
-            ".webp" => "image/webp",
-            ".gif" => "image/gif",
-            ".bmp" => "image/bmp",
-            _ => "application/octet-stream"
+            Mode = DestinationEditMode.Create,
+            TripId = TripId
         };
+        var dlg = new TripPlanner.Wpf.Views.DestinationEditDialog(vm) { Owner = Application.Current?.MainWindow };
+        if (dlg.ShowDialog() == true)
+            await RefreshDestinationsAsync();
+    }
+
+    [RelayCommand]
+    private async Task EditAsync(DestinationCard? card)
+    {
+        if (card is null || card.IsAddNew) return;
+
+        var vm = new DestinationEditViewModel(_client)
+        {
+            Mode = DestinationEditMode.Edit,
+            TripId = TripId,
+            DestinationId = card.DestinationId,
+            Title = card.Name,
+            Description = card.Description,
+            ImageUrl = card.ImageUrl
+        };
+
+        var dlg = new TripPlanner.Wpf.Views.DestinationEditDialog(vm) { Owner = Application.Current?.MainWindow };
+        if (dlg.ShowDialog() == true)
+            await RefreshDestinationsAsync();
+    }
+
+    // --- helpers ---
+    private static string GetString(object obj, string name)
+        => obj.GetType().GetProperty(name, BindingFlags.Public | BindingFlags.Instance)?.GetValue(obj)?.ToString() ?? "";
+
+    private static string? GetNullableString(object obj, string name)
+        => obj.GetType().GetProperty(name, BindingFlags.Public | BindingFlags.Instance)?.GetValue(obj)?.ToString();
+
+    private static bool GetBool(object obj, string name)
+        => (obj.GetType().GetProperty(name, BindingFlags.Public | BindingFlags.Instance)?.GetValue(obj) as bool?) ?? false;
+
+    private static int GetInt(object obj, string name)
+    {
+        var v = obj.GetType().GetProperty(name, BindingFlags.Public | BindingFlags.Instance)?.GetValue(obj);
+        if (v is int i) return i;
+        if (v is long l) return (int)l;
+        if (v is string s && int.TryParse(s, out var r)) return r;
+        return 0;
+    }
+
+    private static string[]? GetStringArray(object obj, string name)
+    {
+        var pi = obj.GetType().GetProperty(name, BindingFlags.Public | BindingFlags.Instance);
+        var v = pi?.GetValue(obj);
+        if (v is string[] arr) return arr;
+        if (v is System.Collections.IEnumerable en)
+            return en.Cast<object?>().Select(o => o?.ToString() ?? "").Where(s => !string.IsNullOrEmpty(s)).ToArray();
+        return null;
     }
 }
 
-public sealed partial class DestinationRow : ObservableObject
+public sealed partial class DestinationCard : ObservableObject
 {
-    public string DestinationId { get; init; } = "";
-    [ObservableProperty] private string _title = "";
-    [ObservableProperty] private string? _description;
-    [ObservableProperty] private int _votes;
-    [ObservableProperty] private bool _isChosen;
-
-    public ObservableCollection<ImageRow> Images { get; } = new();
-
-    public static DestinationRow FromDto(DestinationProposalDto d)
-    {
-        return new DestinationRow
-        {
-            DestinationId = d.DestinationId.ToString("D"),
-            Title = d.Title,
-            Description = d.Description,
-            Votes = d.Votes,
-            IsChosen = d.IsChosen
-        };
-    }
+    public string DestinationId { get; set; } = "";
+    [ObservableProperty] private string _name = "";
+    [ObservableProperty] private string _description = "";
+    [ObservableProperty] private int _voteCount;
+    [ObservableProperty] private string[] _voterParticipantIds = Array.Empty<string>();
+    [ObservableProperty] private bool _isMostVoted;
+    [ObservableProperty] private bool _isSelectedVoterVoted;
+    [ObservableProperty] private string? _imageUrl;
+    public bool IsAddNew { get; private set; }
+    public static DestinationCard CreateAddCard() => new DestinationCard { IsAddNew = true, Name = "Add…" };
 }
 
-public sealed partial class ImageRow : ObservableObject
+public sealed record VoterOption(string? ParticipantId, string Label, bool IsMe)
 {
-    public ImageRow(string imageId, string fileName, string? url)
-    {
-        ImageId = imageId; _fileName = fileName; _url = url;
-    }
-
-    public string ImageId { get; }
-    [ObservableProperty] private string _fileName;
-    [ObservableProperty] private string? _url;
+    public override string ToString() => Label;
 }

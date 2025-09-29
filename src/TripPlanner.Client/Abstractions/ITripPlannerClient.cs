@@ -36,12 +36,18 @@ public interface ITripPlannerClient
     Task<bool> RenameTripAsync(string tripId, string name, CancellationToken ct = default);
     
     Task<IReadOnlyList<DestinationProposalDto>?> GetDestinationsAsync(string tripId, CancellationToken ct = default);
+    Task<Dictionary<string, object>?> GetDestinationAsync(string tripId, string destinationId, CancellationToken ct = default);
 
     /// <summary>Returns the created destination id (GUID string) or null if trip not found.</summary>
     Task<string?> ProposeDestinationAsync(string tripId, ProposeDestinationRequest request, CancellationToken ct = default);
 
     /// <summary>Returns true if accepted (204), false on 404.</summary>
     Task<bool> VoteDestinationAsync(string tripId, string destinationId, VoteDestinationRequest request, CancellationToken ct = default);
+    Task<bool> UnvoteDestinationAsync(string tripId, string destinationId, CancellationToken ct = default);
+    Task<bool> ProxyVoteDestinationAsync(string tripId, string destinationId, string participantId, CancellationToken ct = default);
+    Task<bool> ProxyUnvoteDestinationAsync(string tripId, string destinationId, string participantId, CancellationToken ct = default);
+    Task<bool> UpdateDestinationAsync(string tripId, string destinationId, UpdateDestinationRequest request, CancellationToken ct = default);
+    Task<bool> DeleteDestinationAsync(string tripId, string destinationId, CancellationToken ct = default);
 
     // Description APIs
     Task<string?> GetTripDescriptionAsync(string tripId, CancellationToken ct = default);
