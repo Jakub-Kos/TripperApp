@@ -1,321 +1,219 @@
-# TripperApp
-Seminar Advanced C# Project with the aim of providing a handy tool for planning trips (TRIP PlanER)
+# TripPlanner
+A .NET 9 trip planning application with a clean architecture, Minimal API backend, and a WPF desktop client. It helps small groups plan trips collaboratively: propose destinations and dates, vote, manage gear, invite participants, and build an itinerary. The core is organized with ports and adapters so infrastructure can be swapped without touching business logic.
 
 
-```bash
-docker compose up --build
+## Key features
+- Create and manage trips with statuses
+- Invite participants (codes and links), join by invite
+- Propose destinations with images; cast and revoke votes
+- Propose date options; vote for preferred dates
+- Manage participants, gear, transportation, and itinerary items
+- Authentication with JWT (register, login, refresh, logout)
+- WPF client for an opinionated desktop experience (MVVM)
+- SQLite persistence by default (EF Core) with pluggable in-memory adapter for tests/dev
+- OpenAPI/Swagger UI for fast API exploration
 
-docker compose down
-```
+
+## Tech stack
+- .NET 9, C# 13
+- ASP.NET Core Minimal API
+- WPF (net9.0-windows)
+- EF Core (SQLite)
+- xUnit tests (unit + integration)
+- Docker (optional) for easy local runs
 
 
-```bash
-# Run from repo root
-$target = 90KB
-$files = Get-ChildItem -Recurse -File -Include *.cs |
-  Where-Object {
-    $_.FullName -notmatch '\\(bin|obj|\.vs|\.idea)\\' -and
-    $_.Name -notmatch '(\.g(\.i)?\.cs$|\.designer\.cs$|AssemblyInfo\.cs$|GlobalUsings\.g\.cs$)'
-  }
-$bytes = ($files | Measure-Object Length -Sum).Sum
-$kb    = [math]::Round($bytes/1KB, 2)
-if ($bytes -ge $target) {
-  Write-Host "C# source total: $kb KB ($bytes bytes) — ✅ PASS (≥ 90 KB)"
-} else {
-  $short = [math]::Round(($target-$bytes)/1KB,2)
-  Write-Host "C# source total: $kb KB ($bytes bytes) — ❌ Need $short KB more to reach 90 KB"
-}
-
-# Without tests
-$target = 90KB
-$files = Get-ChildItem -Recurse -File -Include *.cs -Path src |
-  Where-Object {
-    $_.FullName -notmatch '\\(bin|obj|\.vs|\.idea)\\' -and
-    $_.Name -notmatch '(\.g(\.i)?\.cs$|\.designer\.cs$|AssemblyInfo\.cs$|GlobalUsings\.g\.cs$)'
-  }
-$bytes = ($files | Measure-Object Length -Sum).Sum
-$kb    = [math]::Round($bytes/1KB, 2)
-if ($bytes -ge $target) {
-  Write-Host "C# source in src/: $kb KB ($bytes bytes) — ✅ PASS (≥ 90 KB)"
-} else {
-  $short = [math]::Round(($target-$bytes)/1KB,2)
-  Write-Host "C# source in src/: $kb KB ($bytes bytes) — ❌ Need $short KB more"
-}
-
-# Per folder
-$files | ForEach-Object {
-  [pscustomobject]@{
-    Project = (Resolve-Path -Relative $_.FullName) -replace '^\.\\','' -replace '\\[^\\]+$',''
-    KB      = [math]::Round($_.Length/1KB,2)
-  }
-} | Group-Object Project | ForEach-Object {
-  [pscustomobject]@{
-    Project = $_.Name
-    KB      = [math]::Round( ($_.Group | Measure-Object KB -Sum).Sum, 2)
-  }
-} | Sort-Object KB -Descending | Format-Table -Auto
-```
-
-```bash
-# Random
-dotnet tool install --global dotnet-ef
-
-```
-
-```bash
-dotnet build
-```
-
-```bash
- dotnet run --project src/TripPlanner.Api
-```
-
-```bash
-# POST
-Invoke-RestMethod -Method Post -Uri http://localhost:5162/api/v1/trips `
-  -ContentType application/json `
-  -Body '{"name":"Snezka Hike","organizerId":"00000000-0000-0000-0000-000000000001"}'
-```
-```bash
-# GET
-Invoke-RestMethod http://localhost:5162/api/v1/trips
-```
-
-# TripPlanner — Base Architecture Overview
-
-This repo is a **front‑end–agnostic base** for a trip planning platform, structured around **Hexagonal (Ports & Adapters)** with a light touch of **CQRS**. It runs today with an **ASP.NET Core Minimal API** and an **in‑memory persistence adapter** so you can develop quickly, then swap adapters (e.g., EF Core/SQLite) without touching core logic.
-
----
-
-## What you have today (MVP)
-
-* **.NET 9** solution with clean layering and DI ready.
-* **Core.Domain**: pure domain model with a `Trip` aggregate and strong IDs (`TripId`, `UserId`).
-* **Core.Contracts**: DTOs and a small error contract: `TripDto`, `CreateTripRequest/Response`, `ErrorCodes`, `ErrorResponse`.
-* **Core.Application**: application ports (`ITripRepository`, `IUnitOfWork`) and two use cases:
-
-    * `CreateTripHandler` (command)
-    * `ListTripsHandler` (query)
-* **Adapters.Persistence.InMemory**: `InMemoryTripRepository` + service registration extension.
-* **Api**: Minimal API exposing **V1** endpoints:
-
-    * `POST /api/v1/trips` — create a trip (validates GUID)
-    * `GET  /api/v1/trips` — list trips
-    * Swagger UI included.
-* **Tests.Domain**: example xUnit tests for the domain (`TripTests`).
-* **Directory.Build.props** pinned to `net9.0` with nullable + implicit usings.
-
-> **Goal:** Keep the UI thin (WPF/Angular/etc. later). All business logic belongs in **Domain**/**Application**. Adapters are swappable.
-
----
-
-## Project layout
-
+## Repository layout
 ```
 TripPlanner.sln
 Directory.Build.props
+README.md
 src/
-  TripPlanner.Core.Domain/
-  TripPlanner.Core.Contracts/
-  TripPlanner.Core.Application/
-  TripPlanner.Adapters.Persistence.InMemory/
-  TripPlanner.Api/
+  TripPlanner.Core.Domain/           # Domain entities and invariants (no external deps)
+  TripPlanner.Core.Contracts/        # DTOs, request/response shapes, error model
+  TripPlanner.Core.Application/      # Use cases + ports (interfaces)
+  TripPlanner.Adapters.Persistence.InMemory/ # In-memory repo/IoC for quick dev/tests
+  TripPlanner.Adapters.Persistence.Ef/       # EF Core + SQLite adapter
+  TripPlanner.Api/                   # Minimal API + Swagger + Auth
+  TripPlanner.Client/                # Typed HTTP client SDK for .NET frontends
+  TripPlanner.Wpf/                   # WPF desktop client (MVVM)
 tests/
-  TripPlanner.Tests.Domain/
+  TripPlanner.Tests.Domain/          # Domain unit tests
+  TripPlanner.Tests.Integration/     # API integration tests
+tools/
+  smoke-api.ps1                      # End-to-end API smoke script
 ```
 
-### Responsibilities per project
 
-* **Core.Domain**: Entities, value objects, invariants. No external deps.
-* **Core.Contracts**: DTOs, request/response shapes, error model. Shared across boundaries.
-* **Core.Application**: Use cases (handlers), ports (interfaces). Depends only on Domain + Contracts.
-* **Adapters.Persistence.InMemory**: Implements ports for quick dev.
-* **Api**: HTTP delivery adapter. Maps HTTP ⇄ Contracts ⇄ Application handlers.
-* **Tests.Domain**: Unit tests for domain behavior.
+## Prerequisites
+- .NET SDK 9.0+
+- PowerShell 7+ (pwsh) recommended for scripts on Windows
+- Docker Desktop (optional, for containerized runs)
 
----
 
-## Build & run
+## Getting started (local)
+1) Build the solution
+- pwsh
+  dotnet build
 
-```bash
-# From repo root
- dotnet build
- dotnet run --project src/TripPlanner.Api
-# Then open the printed URL + /swagger (e.g., http://localhost:5162/swagger)
-```
+2) Run the API (Development)
+- pwsh
+  dotnet run --project src\TripPlanner.Api
+- Browse Swagger UI at the printed URL, e.g. http://localhost:5162/swagger
 
-**PowerShell examples**
-
+3) Try a couple of endpoints (PowerShell)
+- Create a trip
 ```powershell
-# Create a trip (PowerShell-native)
 Invoke-RestMethod -Method Post -Uri http://localhost:5162/api/v1/trips `
   -ContentType application/json `
   -Body '{"name":"Snezka Hike","organizerId":"00000000-0000-0000-0000-000000000001"}'
-
-# List trips
+```
+- List trips
+```powershell
 Invoke-RestMethod http://localhost:5162/api/v1/trips
 ```
 
----
+4) Run the WPF client (optional)
+- Ensure the API is running
+- pwsh
+  dotnet run --project src\TripPlanner.Wpf
+- The WPF app defaults to the same localhost API. Some features (e.g., images) assume writeable storage by the API.
 
-## Design principles
 
-* **Hexagonal (Ports & Adapters)**: Core logic defines **ports**; adapters implement them.
-* **CQRS-lite**: Separate commands/queries at the Application level for clarity.
-* **Contracts-first**: UIs and integrations use stable DTOs.
-* **Thin delivery**: API layer performs I/O, validation, and mapping—business rules live in the core.
-* **Replaceable infrastructure**: Start in-memory; swap to EF/SQLite without rewriting use cases.
+## Configuration
+App settings are in src\TripPlanner.Api\appsettings.json and appsettings.Development.json.
+- ConnectionStrings:Default — SQLite file path (default: Data Source=tripplanner.db)
+- Jwt: Issuer, Audience, Key — dev-only defaults included; set strong secrets for real deployments
+- Static uploads (destination images) are served from the API’s web root under /uploads
 
----
+Override settings via environment variables (Docker-friendly):
+- ConnectionStrings__Default=Data Source=/app/data/tripplanner.db
+- ASPNETCORE_ENVIRONMENT=Development
 
-## Component diagram (mermaid)
 
-```mermaid
-flowchart LR
-  subgraph Client[Clients]
-    A1[Swagger / Tools]
-    A2[Future WPF]
-    A3[Future Angular]
-  end
+## Docker quickstart
+A simple compose file runs the API with a persisted SQLite database volume.
+- pwsh
+  docker compose up --build
+- Open http://localhost:5162/swagger
+- Stop and remove containers when done
+- pwsh
+  docker compose down
 
-  A1 --> API
-  A2 --> API
-  A3 --> API
 
-  subgraph API[TripPlanner.Api]
-    API2 -->|Contracts DTOs| APP[(Core.Application)]
-  end
+## EF Core (SQLite) notes
+- The EF adapter project lives in src\TripPlanner.Adapters.Persistence.Ef
+- Default SQLite connection string: Data Source=tripplanner.db
+- Install global tools if needed
+  dotnet tool install --global dotnet-ef
+- Typical commands (run from repository root or EF project folder):
+  dotnet ef migrations add Init -p src/TripPlanner.Adapters.Persistence.Ef -s src/TripPlanner.Api
+  dotnet ef database update -p src/TripPlanner.Adapters.Persistence.Ef -s src/TripPlanner.Api
 
-  subgraph CORE[Core]
-    APP -->|calls ports| PORTS{{Ports}}
-    DOM[(Core.Domain)] --- APP
-  end
+The API is already wired to use EF/SQLite by default in Development. The in-memory adapter is available for tests.
 
-  subgraph ADAPTERS[Adapters]
-    MEM[(InMemory Repo)]:::adapter
-  end
 
-  PORTS --> MEM
+## API overview
+- Swagger/OpenAPI available at /swagger
+- Public endpoints (selection):
+  - Auth: /auth/register, /auth/login, /auth/refresh, /auth/logout
+  - Trips: POST /api/v1/trips, GET /api/v1/trips, PATCH /api/v1/trips/{id}/status
+  - Participants: invites, join by code
+  - Destinations: propose/list, votes (self and proxy placeholders)
+  - Dates: propose/list, votes (self and proxy placeholders)
+  - Gear, Transportation, Itinerary: CRUD-like endpoints
 
-  classDef adapter fill:#eef,stroke:#99c,stroke-width:1px;
-```
+See the source files in src\TripPlanner.Api\Endpoints for the full map.
 
----
+## Architecture diagrams
 
-## Request flow (mermaid sequence)
-
-```mermaid
-sequenceDiagram
-  participant C as Client
-  participant API as Minimal API
-  participant APP as Application Handler
-  participant PORT as ITripRepository (Port)
-  participant AD as InMemory Repository (Adapter)
-
-  C->>API: POST /api/v1/trips (CreateTripRequest)
-  API->>APP: CreateTripCommand
-  APP->>PORT: Add(Trip)
-  PORT->>AD: Add(Trip)
-  AD-->>PORT: OK
-  APP-->>API: CreateTripResponse (TripDto)
-  API-->>C: 201 Created + TripDto
-```
-
----
-
-## Current API (V1)
-
-### POST /api/v1/trips
-
-**Body**
-
-```json
-{ "name": "Snezka Hike", "organizerId": "00000000-0000-0000-0000-000000000001" }
-```
-
-**Responses**
-
-* 201 Created → `TripDto`
-* 400 BadRequest → validation error (e.g., non-GUID organizerId)
-
-### GET /api/v1/trips
-
-**Query**
-
-* `skip`, `take` (optional)
-
-**Responses**
-
-* 200 OK → `TripDto[]`
-
-> Tip: Swagger at `/swagger` shows and executes both endpoints.
-
----
-
-## Dependencies between projects (mermaid)
-
+Project modules and adapters
 ```mermaid
 graph LR
-  Domain[Core.Domain]
-  Contracts[Core.Contracts]
-  Application[Core.Application]
-  InMemory[Adapters.Persistence.InMemory]
-  Api[Api]
+  A[TripPlanner WPF client] -->|Typed HTTP| C[TripPlanner Api]
+  B[External tools and Swagger UI] --> C
 
-  Application --> Domain
-  Application --> Contracts
-  InMemory --> Application
-  Api --> Application
-  Api --> Contracts
-  Api --> InMemory
+  subgraph Core
+    D[Core Domain]
+    E[Core Contracts]
+    F[Core Application]
+  end
+
+  subgraph Persistence Adapters
+    G[Adapters Persistence EF - EF Core + SQLite]
+    H[Adapters Persistence InMemory]
+  end
+
+  C -->|uses DTOs| E
+  C -->|invokes use-cases| F
+  F --> D
+  F --> E
+  F -->|ports| I[Persistence Ports]
+  I --> G
+  I --> H
 ```
 
----
+JWT auth flow and protected API call
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant W as WPF Client / Tool
+  participant API as TripPlanner.Api
+  participant Auth as Auth Service
+  participant DB as SQLite
 
-## Testing quickstart
+  U->>W: Register/Login
+  W->>API: POST /auth/register or /auth/login
+  API->>Auth: Validate credentials
+  Auth-->>API: OK
+  API-->>W: 200 OK + { accessToken (JWT), refreshToken }
 
-```bash
-# Domain tests
- dotnet test tests/TripPlanner.Tests.Domain
+  Note over W: Store accessToken securely (memory/OS keychain)
+
+  W->>API: GET /api/v1/trips<br/>Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
+  API->>API: Validate JWT (issuer, audience, signature, expiry)
+  API->>DB: Query data (via EF Core)
+  DB-->>API: Trips
+  API-->>W: 200 OK + trips
+
+  Note over W,API: On 401 due to expired token, call /auth/refresh<br/>to obtain a new accessToken using refreshToken.
 ```
 
-Add more tests per layer later (Application, Api, Persistence).
+
+## Tests
+- Run all tests
+  dotnet test
+- Run domain tests only
+  dotnet test tests/TripPlanner.Tests.Domain
+- Run integration tests
+  dotnet test tests/TripPlanner.Tests.Integration
+
+
+## API smoke test
+A comprehensive PowerShell script exercises the API end-to-end.
+- Prereqs: API running locally; PowerShell 7+
+- Run from repo root
+  pwsh tools/smoke-api.ps1
+  pwsh -File .\tools\smoke-api.ps1
+The script registers two users if missing, then walks through trips, invites, dates, destinations, placeholders, and gear workflows, failing fast on HTTP errors.
+
+
+## Troubleshooting
+- Port already in use: check launchSettings.json or change the exposed port in docker-compose.yml
+- SQLite file locked on Windows: stop the API or Docker container before deleting tripplanner.db
+- 401/403 from API: ensure you pass the Bearer token from /auth/login for protected endpoints
+- Images not showing in WPF: verify API is running and static uploads directory exists
+
+
+## Roadmap (high level)
+- More validation and richer domain rules
+- Offline sync for the WPF client
+- Background jobs for reminders/notifications
+- CI pipeline (build, test, smoke) and automatic OpenAPI publishing
+
+
+## License
+Educational project for an Advanced C# seminar. If you plan to reuse or publish, please add or adjust a license that fits your needs.
 
 ---
 
-## Roadmap (suggested next steps)
-
-1. **Persistence (EF Core + SQLite)**
-
-    * Create `TripPlanner.Adapters.Persistence.Ef` with `AppDbContext`, `TripRecord`, `TripRepository`, `EfUnitOfWork`.
-    * Swap registration in Api (`AddEfPersistence`).
-2. **More use cases**
-
-    * Add: `GetTripById`, `AddParticipant`, `ProposeDateOption`, `CastVote`.
-3. **Contracts & Validation**
-
-    * Fluent validation for request DTOs.
-4. **Client SDK**
-
-    * `TripPlanner.Client` (typed HttpClient) for .NET frontends.
-5. **UI**
-
-    * Thin WPF or Angular consuming the API.
-6. **OpenAPI**
-
-    * Add Swashbuckle annotations & examples; publish OpenAPI spec.
-7. **CI**
-
-    * GitHub Actions: build + test matrix.
-
----
-
-## Dev tips
-
-* **Rider run**: Create a ".NET Launch Settings Profile" config for `TripPlanner.Api` and press ▶. Open `/swagger`.
-* **PowerShell vs curl**: Use `Invoke-RestMethod` in PowerShell, or call `curl.exe` explicitly.
-* **.gitignore**: Keep `bin/`, `obj/`, `.vs/`, `.idea/` out of Git; don’t commit `*.csproj.user`.
-
----
-
-Happy hacking! This base is intentionally small but structured, so adding features is straightforward without entangling UI and core logic.
