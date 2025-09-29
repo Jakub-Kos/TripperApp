@@ -15,8 +15,8 @@ namespace TripPlanner.Wpf.Converters
             if (value is double d) pct = Math.Max(0, Math.Min(1, d));
 
             // Interpolate between White (no votes) and a pleasant green.
-            byte r = (byte)(255 - (int)(pct * 60));  // 255 -> ~195
-            byte g = (byte)(255 - (int)(pct * 180)); // 255 -> ~75
+            byte r = (byte)(255 - (int)(pct * 180)); // 255 -> ~75
+            byte g = (byte)(255 - (int)(pct * 60));  // 255 -> ~195
             byte b = (byte)(255 - (int)(pct * 120)); // 255 -> ~135
             return new SolidColorBrush(Color.FromRgb(r, g, b));
         }
