@@ -170,8 +170,16 @@ public sealed partial class GearViewModel : ObservableObject
     [RelayCommand]
     private async Task BulkCreateCampingPresetAsync()
     {
-        var ok = await _client.BulkCreateGearAsync(TripId, Presets.Camping());
-        if (ok) await RefreshGearAsync();
+        try
+        {
+            var ok = await _client.BulkCreateGearAsync(TripId, Presets.Camping());
+            if (ok) await RefreshGearAsync();
+        }
+        catch (Exception)
+        {
+            // Swallow to avoid app crash if backend returns unexpected payload
+            // TODO: optionally surface a user-friendly notification/logging
+        }
     }
 
     // --- Utilities ---
@@ -210,16 +218,19 @@ public sealed partial class GearItemRow : ObservableObject
         var row = new GearItemRow
         {
             GearId = dto.GearId,
-            Group = dto.Group,
-            Name = dto.Name,
+            Group = dto.Group ?? string.Empty,
+            Name = dto.Name ?? string.Empty,
             Provisioning = dto.Provisioning == GearProvisioning.EACH ? 0 : 1,
             NeededQuantity = dto.NeededQuantity,
             Tags = dto.Tags?.ToArray() ?? Array.Empty<string>(),
         };
 
         row.Assignments.Clear();
-        foreach (var a in dto.Assignments)
-            row.Assignments.Add(new AssignmentRow(a.AssignmentId, a.ParticipantId, a.Quantity));
+        if (dto.Assignments != null)
+        {
+            foreach (var a in dto.Assignments)
+                row.Assignments.Add(new AssignmentRow(a.AssignmentId, a.ParticipantId, a.Quantity));
+        }
 
         // initialize my claim from existing assignment
         var mine = row.Assignments.FirstOrDefault(a => a.ParticipantId == myParticipantId);

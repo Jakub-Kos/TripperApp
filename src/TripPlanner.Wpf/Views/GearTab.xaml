@@ -32,7 +32,8 @@
     </Style>
   </UserControl.Resources>
 
-  <DockPanel Margin="8">
+  <!-- IMPORTANT: enable shared sizing for header + rows -->
+  <DockPanel Margin="8" Grid.IsSharedSizeScope="True">
 
     <!-- Top bar: create item -->
     <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" VerticalAlignment="Top" Margin="0,0,0,12">
@@ -60,22 +61,25 @@
               Command="{Binding BulkCreateCampingPresetCommand}"/>
     </StackPanel>
 
-    <!-- Column headers -->
+    <!-- Column headers (use SharedSizeGroup to align with rows) -->
     <Grid DockPanel.Dock="Top" Margin="0,0,0,6">
       <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="2*"/>   <!-- Item -->
-        <ColumnDefinition Width="110"/>  <!-- Provisioning -->
-        <ColumnDefinition Width="80"/>   <!-- Needed -->
-        <ColumnDefinition Width="80"/>   <!-- Claimed -->
-        <ColumnDefinition Width="80"/>   <!-- Left -->
-        <ColumnDefinition Width="Auto"/> <!-- My claim controls -->
+        <ColumnDefinition Width="*"/>                         <!-- Item (fills left) -->
+        <ColumnDefinition Width="110" SharedSizeGroup="c1"/>  <!-- Provisioning -->
+        <ColumnDefinition Width="80"  SharedSizeGroup="c2"/>  <!-- Needed -->
+        <ColumnDefinition Width="80"  SharedSizeGroup="c3"/>  <!-- Claimed -->
+        <ColumnDefinition Width="80"  SharedSizeGroup="c4"/>  <!-- Left -->
+        <ColumnDefinition Width="Auto" SharedSizeGroup="c5"/> <!-- My claim -->
+        <ColumnDefinition Width="Auto" SharedSizeGroup="c6"/> <!-- Delete -->
       </Grid.ColumnDefinitions>
-      <TextBlock Grid.Column="0" Text="Item" Opacity="0.6"/>
-      <TextBlock Grid.Column="1" Text="Provisioning" Opacity="0.6"/>
-      <TextBlock Grid.Column="2" Text="Needed" Opacity="0.6"/>
-      <TextBlock Grid.Column="3" Text="Claimed" Opacity="0.6"/>
-      <TextBlock Grid.Column="4" Text="Left" Opacity="0.6"/>
-      <TextBlock Grid.Column="5" Text="My claim" Opacity="0.6"/>
+
+      <TextBlock Grid.Column="0" Text="Item"          Opacity="0.6"/>
+      <TextBlock Grid.Column="1" Text="Provisioning"  Opacity="0.6" Margin="12,0,0,0"/>
+      <TextBlock Grid.Column="2" Text="Needed"        Opacity="0.6"/>
+      <TextBlock Grid.Column="3" Text="Claimed"       Opacity="0.6"/>
+      <TextBlock Grid.Column="4" Text="Left"          Opacity="0.6"/>
+      <TextBlock Grid.Column="5" Text="My claim"      Opacity="0.6"/>
+      <!-- column 6 intentionally blank -->
     </Grid>
 
     <!-- Groups + rows -->
@@ -92,25 +96,32 @@
         </GroupStyle>
       </ItemsControl.GroupStyle>
 
+      <!-- Stretch rows to full width so columns match header -->
+      <ItemsControl.ItemContainerStyle>
+        <Style TargetType="ContentPresenter">
+          <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        </Style>
+      </ItemsControl.ItemContainerStyle>
+
       <ItemsControl.ItemTemplate>
         <DataTemplate>
           <Border Style="{StaticResource RowCard}">
             <Grid>
               <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="2*"/>
-                <ColumnDefinition Width="110"/>
-                <ColumnDefinition Width="80"/>
-                <ColumnDefinition Width="80"/>
-                <ColumnDefinition Width="80"/>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>                         <!-- Item (fills left) -->
+                <ColumnDefinition Width="110" SharedSizeGroup="c1"/>
+                <ColumnDefinition Width="80"  SharedSizeGroup="c2"/>
+                <ColumnDefinition Width="80"  SharedSizeGroup="c3"/>
+                <ColumnDefinition Width="80"  SharedSizeGroup="c4"/>
+                <ColumnDefinition Width="Auto" SharedSizeGroup="c5"/>
+                <ColumnDefinition Width="Auto" SharedSizeGroup="c6"/>
               </Grid.ColumnDefinitions>
 
               <!-- Name -->
               <TextBlock Grid.Column="0" Text="{Binding Name}" VerticalAlignment="Center"/>
 
               <!-- Provisioning -->
-              <TextBlock Grid.Column="1"
+              <TextBlock Grid.Column="1" Margin="12,0,0,0"
                          VerticalAlignment="Center"
                          Text="{Binding Provisioning, Converter={StaticResource GearProvisioningToTextConverter}}"/>
 
@@ -131,7 +142,7 @@
                         CommandParameter="{Binding}"/>
               </StackPanel>
 
-              <!-- (Optional) delete item -->
+              <!-- Delete item -->
               <Button Grid.Column="6" Content="✕" Padding="6,2" Margin="8,0,0,0"
                       ToolTip="Delete item"
                       Command="{Binding DataContext.DeleteItemCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
