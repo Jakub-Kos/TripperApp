@@ -82,76 +82,85 @@
       <!-- column 6 intentionally blank -->
     </Grid>
 
-    <!-- Groups + rows -->
-    <ItemsControl ItemsSource="{Binding Source={StaticResource GroupedItems}}">
-      <ItemsControl.GroupStyle>
-        <GroupStyle>
-          <GroupStyle.HeaderTemplate>
-            <DataTemplate>
-              <Border Style="{StaticResource GroupHeader}">
-                <TextBlock Text="{Binding Name}" FontWeight="Bold"/>
-              </Border>
-            </DataTemplate>
-          </GroupStyle.HeaderTemplate>
-        </GroupStyle>
-      </ItemsControl.GroupStyle>
+    <!-- Groups + rows (scrollable body) -->
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <ItemsControl ItemsSource="{Binding Source={StaticResource GroupedItems}}"
+                    ScrollViewer.CanContentScroll="True">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <VirtualizingStackPanel/>
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
 
-      <!-- Stretch rows to full width so columns match header -->
-      <ItemsControl.ItemContainerStyle>
-        <Style TargetType="ContentPresenter">
-          <Setter Property="HorizontalAlignment" Value="Stretch"/>
-        </Style>
-      </ItemsControl.ItemContainerStyle>
+        <ItemsControl.GroupStyle>
+          <GroupStyle>
+            <GroupStyle.HeaderTemplate>
+              <DataTemplate>
+                <Border Style="{StaticResource GroupHeader}">
+                  <TextBlock Text="{Binding Name}" FontWeight="Bold"/>
+                </Border>
+              </DataTemplate>
+            </GroupStyle.HeaderTemplate>
+          </GroupStyle>
+        </ItemsControl.GroupStyle>
 
-      <ItemsControl.ItemTemplate>
-        <DataTemplate>
-          <Border Style="{StaticResource RowCard}">
-            <Grid>
-              <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>                         <!-- Item (fills left) -->
-                <ColumnDefinition Width="110" SharedSizeGroup="c1"/>
-                <ColumnDefinition Width="80"  SharedSizeGroup="c2"/>
-                <ColumnDefinition Width="80"  SharedSizeGroup="c3"/>
-                <ColumnDefinition Width="80"  SharedSizeGroup="c4"/>
-                <ColumnDefinition Width="Auto" SharedSizeGroup="c5"/>
-                <ColumnDefinition Width="Auto" SharedSizeGroup="c6"/>
-              </Grid.ColumnDefinitions>
+        <!-- Stretch rows to full width so columns match header -->
+        <ItemsControl.ItemContainerStyle>
+          <Style TargetType="ContentPresenter">
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+          </Style>
+        </ItemsControl.ItemContainerStyle>
 
-              <!-- Name -->
-              <TextBlock Grid.Column="0" Text="{Binding Name}" VerticalAlignment="Center"/>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate>
+            <Border Style="{StaticResource RowCard}">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*"/>                         <!-- Item (fills left) -->
+                  <ColumnDefinition Width="110" SharedSizeGroup="c1"/>
+                  <ColumnDefinition Width="80"  SharedSizeGroup="c2"/>
+                  <ColumnDefinition Width="80"  SharedSizeGroup="c3"/>
+                  <ColumnDefinition Width="80"  SharedSizeGroup="c4"/>
+                  <ColumnDefinition Width="Auto" SharedSizeGroup="c5"/>
+                  <ColumnDefinition Width="Auto" SharedSizeGroup="c6"/>
+                </Grid.ColumnDefinitions>
 
-              <!-- Provisioning -->
-              <TextBlock Grid.Column="1" Margin="12,0,0,0"
-                         VerticalAlignment="Center"
-                         Text="{Binding Provisioning, Converter={StaticResource GearProvisioningToTextConverter}}"/>
+                <!-- Name -->
+                <TextBlock Grid.Column="0" Text="{Binding Name}" VerticalAlignment="Center"/>
 
-              <!-- Needed / Claimed / Left -->
-              <TextBlock Grid.Column="2" VerticalAlignment="Center" Text="{Binding NeededTotal}"/>
-              <TextBlock Grid.Column="3" VerticalAlignment="Center" Text="{Binding ClaimedTotal}"/>
-              <TextBlock Grid.Column="4" VerticalAlignment="Center" Text="{Binding LeftTotal}"/>
+                <!-- Provisioning -->
+                <TextBlock Grid.Column="1" Margin="12,0,0,0"
+                           VerticalAlignment="Center"
+                           Text="{Binding Provisioning, Converter={StaticResource GearProvisioningToTextConverter}}"/>
 
-              <!-- My claim editor -->
-              <StackPanel Grid.Column="5" Orientation="Horizontal" HorizontalAlignment="Right">
-                <TextBox Width="48" HorizontalContentAlignment="Center"
-                         Text="{Binding MyClaim, UpdateSourceTrigger=PropertyChanged}"/>
-                <Button Content="Save" Padding="12,4" Margin="6,0,0,0"
-                        Command="{Binding DataContext.SaveClaimCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                <!-- Needed / Claimed / Left -->
+                <TextBlock Grid.Column="2" VerticalAlignment="Center" Text="{Binding NeededTotal}"/>
+                <TextBlock Grid.Column="3" VerticalAlignment="Center" Text="{Binding ClaimedTotal}"/>
+                <TextBlock Grid.Column="4" VerticalAlignment="Center" Text="{Binding LeftTotal}"/>
+
+                <!-- My claim editor -->
+                <StackPanel Grid.Column="5" Orientation="Horizontal" HorizontalAlignment="Right">
+                  <TextBox Width="48" HorizontalContentAlignment="Center"
+                           Text="{Binding MyClaim, UpdateSourceTrigger=PropertyChanged}"/>
+                  <Button Content="Save" Padding="12,4" Margin="6,0,0,0"
+                          Command="{Binding DataContext.SaveClaimCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                          CommandParameter="{Binding}"/>
+                  <Button Content="Delete" Padding="12,4" Margin="6,0,0,0"
+                          Command="{Binding DataContext.DeleteClaimCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                          CommandParameter="{Binding}"/>
+                </StackPanel>
+
+                <!-- Delete item -->
+                <Button Grid.Column="6" Content="✕" Padding="6,2" Margin="8,0,0,0"
+                        ToolTip="Delete item"
+                        Command="{Binding DataContext.DeleteItemCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                         CommandParameter="{Binding}"/>
-                <Button Content="Delete" Padding="12,4" Margin="6,0,0,0"
-                        Command="{Binding DataContext.DeleteClaimCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                        CommandParameter="{Binding}"/>
-              </StackPanel>
-
-              <!-- Delete item -->
-              <Button Grid.Column="6" Content="✕" Padding="6,2" Margin="8,0,0,0"
-                      ToolTip="Delete item"
-                      Command="{Binding DataContext.DeleteItemCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                      CommandParameter="{Binding}"/>
-            </Grid>
-          </Border>
-        </DataTemplate>
-      </ItemsControl.ItemTemplate>
-    </ItemsControl>
+              </Grid>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
 
   </DockPanel>
 </UserControl>
