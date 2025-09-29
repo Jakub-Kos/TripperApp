@@ -172,13 +172,20 @@ public sealed partial class GearViewModel : ObservableObject
     {
         try
         {
-            var ok = await _client.BulkCreateGearAsync(TripId, Presets.Camping());
-            if (ok) await RefreshGearAsync();
+            await _client.BulkCreateGearAsync(TripId, Presets.Camping());
         }
         catch (Exception)
         {
             // Swallow to avoid app crash if backend returns unexpected payload
             // TODO: optionally surface a user-friendly notification/logging
+        }
+        finally
+        {
+            // Always attempt to refresh, even if API threw but created items
+            await RefreshGearAsync();
+            // In case the backend is eventually consistent, delay and refresh again
+            await Task.Delay(300);
+            await RefreshGearAsync();
         }
     }
 
