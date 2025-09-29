@@ -123,7 +123,8 @@
                           CommandParameter="{Binding}"/>
                   <Button Content="Choose"
                           Command="{Binding DataContext.ChooseTermCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                          CommandParameter="{Binding}"/>
+                          CommandParameter="{Binding}"
+                          IsEnabled="{Binding DataContext.IsOrganizerMe, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal">
                   <TextBlock Text="{Binding Start}" Margin="0,0,4,0"/>

@@ -54,11 +54,11 @@ public sealed partial class DatesViewModel : ObservableObject
     private async Task RefreshParticipantsAsync()
     {
         VoterOptions.Clear();
-        _myParticipantId = "";
-        _isOrganizerMe = false;
+        MyParticipantId = "";
+        IsOrganizerMe = false;
 
         var participants = await _client.ListParticipantsAsync(TripId);
-        if (participants is null) { _participantCount = 0; return; }
+        if (participants is null) { ParticipantCount = 0; return; }
 
         string? organizerName = null;
         foreach (var p in participants)
@@ -70,27 +70,24 @@ public sealed partial class DatesViewModel : ObservableObject
             var isMe = GetBool(p, "IsMe");
             var username = GetNullableString(p, "Username");
 
-            if (isMe) _myParticipantId = pid;
-            if (isMe && isOrganizer) _isOrganizerMe = true;
+            if (isMe) MyParticipantId = pid;
+            if (isMe && isOrganizer) IsOrganizerMe = true;
             if (isOrganizer) organizerName = username ?? displayName;
         }
 
-        _participantCount = participants.Count();
+        ParticipantCount = participants.Count();
 
         // Build voter options: self always. Placeholders only if organizer.
         var selfLabel = "Me";
         VoterOptions.Add(new VoterOption(null, selfLabel, true));
 
-        if (_isOrganizerMe)
+        foreach (var p in participants)
         {
-            foreach (var p in participants)
-            {
-                var pid = GetString(p, "ParticipantId");
-                var displayName = GetString(p, "DisplayName");
-                var isPlaceholder = GetBool(p, "IsPlaceholder");
-                if (isPlaceholder)
-                    VoterOptions.Add(new VoterOption(pid, $"Placeholder: {displayName}", false));
-            }
+            var pid = GetString(p, "ParticipantId");
+            var displayName = GetString(p, "DisplayName");
+            var isPlaceholder = GetBool(p, "IsPlaceholder");
+            if (isPlaceholder)
+                VoterOptions.Add(new VoterOption(pid, $"Placeholder: {displayName}", false));
         }
 
         SelectedVoter = VoterOptions.FirstOrDefault();
@@ -139,14 +136,14 @@ public sealed partial class DatesViewModel : ObservableObject
 
         // Index availability
         var map = Availability.ToDictionary(a => a.Date, a => a.ParticipantIds, StringComparer.Ordinal);
-        string selectedPid = SelectedVoter?.ParticipantId ?? _myParticipantId;
+        string selectedPid = SelectedVoter?.ParticipantId ?? MyParticipantId;
 
         for (var d = gridStart; d <= gridEnd; d = d.AddDays(1))
         {
             var key = d.ToString("yyyy-MM-dd");
             map.TryGetValue(key, out var voters);
             int votes = voters?.Length ?? 0;
-            double pct = (_participantCount > 0) ? votes / (double)_participantCount : 0.0;
+            double pct = (ParticipantCount > 0) ? votes / (double)ParticipantCount : 0.0;
             bool inRange = d >= start && d <= end;
             bool isMine = voters != null && !string.IsNullOrEmpty(selectedPid) && voters.Contains(selectedPid);
 
@@ -190,7 +187,11 @@ public sealed partial class DatesViewModel : ObservableObject
         }
         else
         {
-            // act as placeholder (organizer)
+            // act as placeholder - only organizer can proxy vote
+            if (!IsOrganizerMe)
+            {
+                return; // non-organizers cannot proxy vote; keep UI change disabled
+            }
             ok = cell.IsSelectedVoterVoted
                 ? await _client.UnvoteOnDateProxyAsync(TripId, dateStr, SelectedVoter.ParticipantId!)
                 : await _client.VoteOnDateProxyAsync(TripId, dateStr, SelectedVoter.ParticipantId!);
@@ -256,6 +257,11 @@ public sealed partial class DatesViewModel : ObservableObject
     private async Task ChooseTermAsync(TermRow row)
     {
         if (row is null) return;
+        // Only the organizer can choose a term
+        if (!IsOrganizerMe)
+        {
+            return;
+        }
         var ok = await _client.ChooseTermAsync(TripId, row.TermId);
         if (ok) await RefreshTerms();
     }
