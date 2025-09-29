@@ -265,6 +265,15 @@ public sealed class TripPlannerClient(HttpClient http) : ITripPlannerClient
         return false;
     }
 
+    public async Task<IReadOnlyList<string>?> GetDestinationVotesAsync(string tripId, string destinationId, CancellationToken ct = default)
+    {
+        var res = await http.GetAsync($"/api/v1/trips/{tripId}/destinations/{destinationId}/votes", ct);
+        if (res.StatusCode == HttpStatusCode.NotFound) return null;
+        res.EnsureSuccessStatusCode();
+        var list = await res.Content.ReadFromJsonAsync<string[]>(cancellationToken: ct);
+        return list;
+    }
+
     public async Task<bool> UpdateDestinationAsync(string tripId, string destinationId, UpdateDestinationRequest request, CancellationToken ct = default)
     {
         var res = await http.PatchAsJsonAsync($"/api/v1/trips/{tripId}/destinations/{destinationId}", request, ct);

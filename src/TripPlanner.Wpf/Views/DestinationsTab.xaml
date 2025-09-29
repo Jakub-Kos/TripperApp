@@ -52,6 +52,10 @@
                     <DataTrigger Binding="{Binding IsMostVoted}" Value="True">
                       <Setter Property="Background" Value="#FFF4C2"/>
                     </DataTrigger>
+                    <DataTrigger Binding="{Binding IsSelectedVoterVoted}" Value="True">
+                      <Setter Property="BorderBrush" Value="#2ECC71"/>
+                      <Setter Property="BorderThickness" Value="3"/>
+                    </DataTrigger>
                   </Style.Triggers>
                 </Style>
               </Border.Style>
@@ -95,7 +99,7 @@
                             Command="{Binding DataContext.ToggleVoteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                             CommandParameter="{Binding}">
                       <Button.Style>
-                        <Style TargetType="Button" BasedOn="{StaticResource MutedButton}">
+                        <Style TargetType="Button">
                           <Setter Property="Content" Value="Vote"/>
                           <Style.Triggers>
                             <DataTrigger Binding="{Binding IsSelectedVoterVoted}" Value="True">
@@ -115,10 +119,6 @@
                           ToolTip="Propose destination"
                           Command="{Binding DataContext.AddNewCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
                 </Grid>
-
-                <!-- Visual accents -->
-                <Border CornerRadius="12" BorderBrush="#2D7D46" BorderThickness="2" IsHitTestVisible="False"
-                        Visibility="{Binding IsSelectedVoterVoted, Converter={StaticResource BoolToVis}}"/>
               </Grid>
 
               <!-- Switch normal vs add -->

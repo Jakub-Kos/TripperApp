@@ -17,6 +17,8 @@ public sealed partial class DestinationsViewModel : ObservableObject
     public DestinationsViewModel(ITripPlannerClient client) => _client = client;
 
     [ObservableProperty] private string _tripId = "";
+    [ObservableProperty] private bool _isOrganizerMe;
+    [ObservableProperty] private string _myParticipantId = "";
     public ObservableCollection<VoterOption> VoterOptions { get; } = new();
     [ObservableProperty] private VoterOption? _selectedVoter;
 
@@ -32,21 +34,32 @@ public sealed partial class DestinationsViewModel : ObservableObject
     private async Task RefreshVotersAsync()
     {
         VoterOptions.Clear();
-        // Everyone can vote as placeholders – list participants and pick placeholders.
+        MyParticipantId = "";
+
         var parts = await _client.ListParticipantsAsync(TripId);
-        VoterOptions.Add(new VoterOption(null, "Me", true)); // self
+
+        string? organizerName = null;
         if (parts is not null)
         {
             foreach (var p in parts)
             {
-                var isPlaceholder = GetBool(p, "IsPlaceholder");
-                if (!isPlaceholder) continue;
-                VoterOptions.Add(new VoterOption(
-                    GetString(p, "ParticipantId"),
-                    $"Placeholder: {GetString(p, "DisplayName")}",
-                    false));
+                var pid          = GetString(p, "ParticipantId");
+                var displayName  = GetString(p, "DisplayName");
+                var isPlaceholder= GetBool(p,   "IsPlaceholder");
+                var isMe         = GetBool(p,   "IsMe");
+                var isOrganizer  = GetBool(p,   "IsOrganizer");
+                var username     = GetNullableString(p, "Username");
+
+                if (isMe) MyParticipantId = pid;
+                if (isOrganizer && organizerName is null) organizerName = username ?? displayName;
+
+                if (isPlaceholder)
+                    VoterOptions.Add(new VoterOption(pid, $"Placeholder: {displayName}", false));
             }
         }
+
+        var selfLabel = organizerName is null ? "Me" : $"Me ({organizerName})";
+        VoterOptions.Insert(0, new VoterOption(null, selfLabel, true));
         SelectedVoter = VoterOptions.FirstOrDefault();
     }
 
@@ -85,13 +98,13 @@ public sealed partial class DestinationsViewModel : ObservableObject
         foreach (var it in Items)
             it.IsMostVoted = it.VoteCount == maxVotes && maxVotes > 0;
 
-        // fetch who voted for each (detail endpoint includes participantIds)
+        // fetch who voted for each using the new votes endpoint
         foreach (var it in Items)
         {
             try
             {
-                var detail = await _client.GetDestinationAsync(TripId, it.DestinationId);
-                it.VoterParticipantIds = GetStringArray(detail, "ParticipantIds") ?? Array.Empty<string>();
+                var votes = await _client.GetDestinationVotesAsync(TripId, it.DestinationId);
+                it.VoterParticipantIds = votes?.ToArray() ?? Array.Empty<string>();
             }
             catch { /* non-fatal; leave empty */ }
         }
@@ -106,11 +119,14 @@ public sealed partial class DestinationsViewModel : ObservableObject
 
     private void RecomputeSelectedFlags()
     {
-        var pid = SelectedVoter?.ParticipantId;
+        var selectedPid = SelectedVoter?.ParticipantId ?? MyParticipantId;
+
         foreach (var it in Items)
         {
             if (it.IsAddNew) continue;
-            it.IsSelectedVoterVoted = !string.IsNullOrWhiteSpace(pid) && it.VoterParticipantIds.Contains(pid);
+            it.IsSelectedVoterVoted =
+                !string.IsNullOrWhiteSpace(selectedPid) &&
+                it.VoterParticipantIds.Contains(selectedPid);
         }
     }
 
@@ -120,7 +136,7 @@ public sealed partial class DestinationsViewModel : ObservableObject
     private async Task ToggleVoteAsync(DestinationCard? card)
     {
         if (card is null || card.IsAddNew) return;
-
+        
         if (SelectedVoter?.ParticipantId is null)
         {
             if (card.IsSelectedVoterVoted)

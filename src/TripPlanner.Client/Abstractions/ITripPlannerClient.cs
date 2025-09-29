@@ -48,6 +48,7 @@ public interface ITripPlannerClient
     Task<bool> ProxyUnvoteDestinationAsync(string tripId, string destinationId, string participantId, CancellationToken ct = default);
     Task<bool> UpdateDestinationAsync(string tripId, string destinationId, UpdateDestinationRequest request, CancellationToken ct = default);
     Task<bool> DeleteDestinationAsync(string tripId, string destinationId, CancellationToken ct = default);
+    Task<IReadOnlyList<string>?> GetDestinationVotesAsync(string tripId, string destinationId, CancellationToken ct = default);
 
     // Description APIs
     Task<string?> GetTripDescriptionAsync(string tripId, CancellationToken ct = default);
