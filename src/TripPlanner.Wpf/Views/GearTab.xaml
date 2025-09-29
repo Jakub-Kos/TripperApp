@@ -1,94 +1,146 @@
 ﻿<UserControl x:Class="TripPlanner.Wpf.Views.GearTab"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <!-- VM tweak (small, optional for full CRUD on assignments):
-       Add on GearItemRow:
-         [ObservableProperty] string? _newAssignmentParticipantId;
-         [ObservableProperty] int? _newAssignmentQuantity;
-       And on GearViewModel:
-         [RelayCommand] private async Task AssignFromRowAsync(GearItemRow row) { /* read row.NewAssignment*; call CreateAssignment */ }
-         [RelayCommand] private async Task UnassignAsync(AssignmentRow row) { /* row has AssignmentId + parent in row? or pass parent via Tag */ }
-         [RelayCommand] private async Task UpdateAssignmentAsync(AssignmentRow row) { /* row.Quantity */ }
-  -->
+  <UserControl.Resources>
+    <!-- Group items by Group -->
+    <CollectionViewSource x:Key="GroupedItems" Source="{Binding Items}">
+      <CollectionViewSource.GroupDescriptions>
+        <PropertyGroupDescription PropertyName="Group"/>
+      </CollectionViewSource.GroupDescriptions>
+      <CollectionViewSource.SortDescriptions>
+        <componentModel:SortDescription PropertyName="Group" Direction="Ascending" xmlns:componentModel="clr-namespace:System.ComponentModel;assembly=WindowsBase"/>
+        <componentModel:SortDescription PropertyName="Name" Direction="Ascending" xmlns:componentModel="clr-namespace:System.ComponentModel;assembly=WindowsBase"/>
+      </CollectionViewSource.SortDescriptions>
+    </CollectionViewSource>
+
+    <!-- Simple capsule header -->
+    <Style x:Key="GroupHeader" TargetType="Border">
+      <Setter Property="Background" Value="#FFEFEFEF"/>
+      <Setter Property="CornerRadius" Value="8"/>
+      <Setter Property="Padding" Value="8"/>
+      <Setter Property="Margin" Value="0,16,0,8"/>
+    </Style>
+
+    <!-- One-line row -->
+    <Style x:Key="RowCard" TargetType="Border">
+      <Setter Property="CornerRadius" Value="6"/>
+      <Setter Property="Padding" Value="6"/>
+      <Setter Property="BorderBrush" Value="#DDDDDD"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="Margin" Value="0,4,0,4"/>
+      <Setter Property="SnapsToDevicePixels" Value="True"/>
+    </Style>
+  </UserControl.Resources>
+
   <DockPanel Margin="8">
-    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
-      <ComboBox Width="140" SelectedIndex="{Binding NewProvisioning}">
+
+    <!-- Top bar: create item -->
+    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" VerticalAlignment="Top" Margin="0,0,0,12">
+      <TextBlock Text="Provisioning" VerticalAlignment="Center" Opacity="0.6"/>
+      <ComboBox Width="140" Margin="8,0,0,0" SelectedIndex="{Binding NewProvisioning}">
         <ComboBoxItem Content="Per person"/>
         <ComboBoxItem Content="Shared"/>
       </ComboBox>
+
+      <TextBlock Text="Group" Margin="16,0,0,0" VerticalAlignment="Center" Opacity="0.6"/>
       <TextBox Width="140" Margin="8,0,0,0" Text="{Binding NewGroup, UpdateSourceTrigger=PropertyChanged}"/>
+
+      <TextBlock Text="Item" Margin="16,0,0,0" VerticalAlignment="Center" Opacity="0.6"/>
       <TextBox Width="200" Margin="8,0,0,0" Text="{Binding NewName, UpdateSourceTrigger=PropertyChanged}"/>
-      <TextBox Width="120" Margin="8,0,0,0" Text="{Binding NewNeededQty, UpdateSourceTrigger=PropertyChanged}"/>
-      <Button Content="Add item" Margin="8,0,0,0" Command="{Binding CreateCommand}"/>
-      <Button Content="Camping preset" Margin="8,0,0,0" Command="{Binding BulkCreateCampingPresetCommand}"/>
+
+      <TextBlock Text="Needed" Margin="16,0,0,0" VerticalAlignment="Center" Opacity="0.6"/>
+      <!-- Enabled only for Shared -->
+      <TextBox Width="80" Margin="8,0,0,0"
+               IsEnabled="{Binding NewProvisioning, Converter={StaticResource BooleanWhenEqualsOneConverter}, ConverterParameter=1}"
+               Text="{Binding NewNeededQty, UpdateSourceTrigger=PropertyChanged}"/>
+
+      <Button Content="Add item" Margin="12,0,0,0" Padding="12,6"
+              Command="{Binding CreateCommand}"/>
+      <Button Content="Camping preset" Margin="8,0,0,0" Padding="12,6"
+              Command="{Binding BulkCreateCampingPresetCommand}"/>
     </StackPanel>
 
-    <ItemsControl ItemsSource="{Binding Items}">
+    <!-- Column headers -->
+    <Grid DockPanel.Dock="Top" Margin="0,0,0,6">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="2*"/>   <!-- Item -->
+        <ColumnDefinition Width="110"/>  <!-- Provisioning -->
+        <ColumnDefinition Width="80"/>   <!-- Needed -->
+        <ColumnDefinition Width="80"/>   <!-- Claimed -->
+        <ColumnDefinition Width="80"/>   <!-- Left -->
+        <ColumnDefinition Width="Auto"/> <!-- My claim controls -->
+      </Grid.ColumnDefinitions>
+      <TextBlock Grid.Column="0" Text="Item" Opacity="0.6"/>
+      <TextBlock Grid.Column="1" Text="Provisioning" Opacity="0.6"/>
+      <TextBlock Grid.Column="2" Text="Needed" Opacity="0.6"/>
+      <TextBlock Grid.Column="3" Text="Claimed" Opacity="0.6"/>
+      <TextBlock Grid.Column="4" Text="Left" Opacity="0.6"/>
+      <TextBlock Grid.Column="5" Text="My claim" Opacity="0.6"/>
+    </Grid>
+
+    <!-- Groups + rows -->
+    <ItemsControl ItemsSource="{Binding Source={StaticResource GroupedItems}}">
+      <ItemsControl.GroupStyle>
+        <GroupStyle>
+          <GroupStyle.HeaderTemplate>
+            <DataTemplate>
+              <Border Style="{StaticResource GroupHeader}">
+                <TextBlock Text="{Binding Name}" FontWeight="Bold"/>
+              </Border>
+            </DataTemplate>
+          </GroupStyle.HeaderTemplate>
+        </GroupStyle>
+      </ItemsControl.GroupStyle>
+
       <ItemsControl.ItemTemplate>
         <DataTemplate>
-          <Border BorderBrush="#DDD" BorderThickness="1" Padding="8" Margin="0,0,0,8">
-            <DockPanel>
-              <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
-                <Button Content="Save" Margin="8,0,0,0"
-                        Command="{Binding DataContext.UpdateCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+          <Border Style="{StaticResource RowCard}">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*"/>
+                <ColumnDefinition Width="110"/>
+                <ColumnDefinition Width="80"/>
+                <ColumnDefinition Width="80"/>
+                <ColumnDefinition Width="80"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+
+              <!-- Name -->
+              <TextBlock Grid.Column="0" Text="{Binding Name}" VerticalAlignment="Center"/>
+
+              <!-- Provisioning -->
+              <TextBlock Grid.Column="1"
+                         VerticalAlignment="Center"
+                         Text="{Binding Provisioning, Converter={StaticResource GearProvisioningToTextConverter}}"/>
+
+              <!-- Needed / Claimed / Left -->
+              <TextBlock Grid.Column="2" VerticalAlignment="Center" Text="{Binding NeededTotal}"/>
+              <TextBlock Grid.Column="3" VerticalAlignment="Center" Text="{Binding ClaimedTotal}"/>
+              <TextBlock Grid.Column="4" VerticalAlignment="Center" Text="{Binding LeftTotal}"/>
+
+              <!-- My claim editor -->
+              <StackPanel Grid.Column="5" Orientation="Horizontal" HorizontalAlignment="Right">
+                <TextBox Width="48" HorizontalContentAlignment="Center"
+                         Text="{Binding MyClaim, UpdateSourceTrigger=PropertyChanged}"/>
+                <Button Content="Save" Padding="12,4" Margin="6,0,0,0"
+                        Command="{Binding DataContext.SaveClaimCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                         CommandParameter="{Binding}"/>
-                <Button Content="Delete" Margin="8,0,0,0"
-                        Command="{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                <Button Content="Delete" Padding="12,4" Margin="6,0,0,0"
+                        Command="{Binding DataContext.DeleteClaimCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                         CommandParameter="{Binding}"/>
               </StackPanel>
 
-              <StackPanel>
-                <StackPanel Orientation="Horizontal">
-                  <TextBox Width="130" Text="{Binding Group, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,0"/>
-                  <TextBox Width="220" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,0"/>
-                  <ComboBox Width="120" SelectedIndex="{Binding Provisioning}">
-                    <ComboBoxItem Content="Per person"/>
-                    <ComboBoxItem Content="Shared"/>
-                  </ComboBox>
-                  <TextBox Width="120" Margin="8,0,0,0" Text="{Binding NeededQuantity, UpdateSourceTrigger=PropertyChanged}"/>
-                </StackPanel>
-
-                <!-- Assignments -->
-                <GroupBox Header="Assignments" Margin="0,8,0,0">
-                  <DockPanel>
-                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
-                      <TextBox Width="200"
-                               Text="{Binding NewAssignmentParticipantId, UpdateSourceTrigger=PropertyChanged}"/>
-                      <TextBox Width="80" Margin="8,0,0,0"
-                               Text="{Binding NewAssignmentQuantity, UpdateSourceTrigger=PropertyChanged}"/>
-                      <Button Content="Assign"
-                              Margin="8,0,0,0"
-                              Command="{Binding DataContext.AssignFromRowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                              CommandParameter="{Binding}"/>
-                    </StackPanel>
-
-                    <DataGrid ItemsSource="{Binding Assignments}" AutoGenerateColumns="False" CanUserAddRows="False">
-                      <DataGrid.Columns>
-                        <DataGridTextColumn Header="Participant" Binding="{Binding ParticipantId}" Width="*"/>
-                        <DataGridTextColumn Header="Qty" Binding="{Binding Quantity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="80"/>
-                        <DataGridTemplateColumn Header="" Width="150">
-                          <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                              <StackPanel Orientation="Horizontal">
-                                <Button Content="Update"
-                                        Command="{Binding DataContext.UpdateAssignmentCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                        CommandParameter="{Binding}"/>
-                                <Button Content="Remove" Margin="8,0,0,0"
-                                        Command="{Binding DataContext.UnassignCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                        CommandParameter="{Binding}"/>
-                              </StackPanel>
-                            </DataTemplate>
-                          </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
-                      </DataGrid.Columns>
-                    </DataGrid>
-                  </DockPanel>
-                </GroupBox>
-              </StackPanel>
-            </DockPanel>
+              <!-- (Optional) delete item -->
+              <Button Grid.Column="6" Content="✕" Padding="6,2" Margin="8,0,0,0"
+                      ToolTip="Delete item"
+                      Command="{Binding DataContext.DeleteItemCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                      CommandParameter="{Binding}"/>
+            </Grid>
           </Border>
         </DataTemplate>
       </ItemsControl.ItemTemplate>
     </ItemsControl>
+
   </DockPanel>
 </UserControl>

@@ -38,4 +38,18 @@ namespace TripPlanner.Wpf.Converters
             => string.IsNullOrWhiteSpace(value as string) ? Visibility.Collapsed : Visibility.Visible;
         public object ConvertBack(object value, Type t, object p, CultureInfo c) => Binding.DoNothing;
     }
+    
+    public sealed class GearProvisioningToTextConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+            => (value is int i && i == 1) ? "Shared" : "Per person";
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => 0;
+    }
+
+    public sealed class BooleanWhenEqualsOneConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+            => (value is int i) && i == 1;
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => 0;
+    }
 }
