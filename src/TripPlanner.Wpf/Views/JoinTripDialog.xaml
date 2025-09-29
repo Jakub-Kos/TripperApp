@@ -21,58 +21,25 @@
       <RowDefinition Height="Auto"/>
     </Grid.RowDefinitions>
 
-    <TextBlock Text="How would you like to join?" FontWeight="Bold" FontSize="16"/>
+    <TextBlock Text="Join a trip" FontWeight="Bold" FontSize="16"/>
 
-    <!-- Mode selector -->
-    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,8,0,12">
-      <RadioButton Content="Claim placeholder"
-                   IsChecked="{Binding Mode, Converter={StaticResource EnumEqualsConverter}, ConverterParameter={x:Static local:JoinMode.ClaimPlaceholder}}"
-                   Margin="0,0,12,0"/>
-      <RadioButton Content="Join as me"
-                   IsChecked="{Binding Mode, Converter={StaticResource EnumEqualsConverter}, ConverterParameter={x:Static local:JoinMode.JoinAsMe}}"/>
+    <!-- Single-step: enter code, then choose action -->
+    <StackPanel Grid.Row="1" Orientation="Vertical" Margin="0,8,0,12">
+      <TextBlock Text="Enter invite or claim code you received."/>
+      <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+        <TextBlock Text="Code:" VerticalAlignment="Center" Width="100"/>
+        <TextBox Width="260" Text="{Binding InviteCode, UpdateSourceTrigger=PropertyChanged}"/>
+      </StackPanel>
     </StackPanel>
-
-    <!-- Panels -->
-    <Grid Grid.Row="2">
-      <Grid.RowDefinitions>
-        <RowDefinition Height="Auto"/>
-        <RowDefinition Height="Auto"/>
-        <RowDefinition Height="Auto"/>
-      </Grid.RowDefinitions>
-
-      <!-- Claim panel -->
-      <StackPanel Visibility="{Binding Mode, Converter={StaticResource JoinModeToVisibility}, ConverterParameter=Claim}">
-        <TextBlock Text="Enter claim code you received from the organizer."/>
-        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-          <TextBlock Text="Claim code:" VerticalAlignment="Center" Width="100"/>
-          <TextBox Width="260" Text="{Binding ClaimCode, UpdateSourceTrigger=PropertyChanged}"/>
-        </StackPanel>
-        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-          <TextBlock Text="Display name:" VerticalAlignment="Center" Width="100"/>
-          <TextBox Width="260" Text="{Binding ClaimDisplayName, UpdateSourceTrigger=PropertyChanged}"/>
-        </StackPanel>
-      </StackPanel>
-
-      <!-- Join-as-me panel -->
-      <StackPanel Visibility="{Binding Mode, Converter={StaticResource JoinModeToVisibility}, ConverterParameter=Join}">
-        <TextBlock Text="Enter an invite code to join as yourself."/>
-        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-          <TextBlock Text="Invite code:" VerticalAlignment="Center" Width="100"/>
-          <TextBox Width="260" Text="{Binding InviteCode, UpdateSourceTrigger=PropertyChanged}"/>
-        </StackPanel>
-      </StackPanel>
-    </Grid>
 
     <!-- Footer -->
     <DockPanel Grid.Row="3" Margin="0,12,0,0">
       <TextBlock DockPanel.Dock="Left" Text="{Binding Status}" Foreground="Gray" VerticalAlignment="Center"/>
       <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-        <Button Content="Claim" Margin="0,0,8,0"
-                Visibility="{Binding Mode, Converter={StaticResource JoinModeToVisibility}, ConverterParameter=Claim}"
+        <Button Content="Claim placeholder" Margin="0,0,8,0"
                 IsEnabled="{Binding Busy, Converter={StaticResource InverseBooleanConverter}}"
                 Command="{Binding ClaimCommand}"/>
-        <Button Content="Join"
-                Visibility="{Binding Mode, Converter={StaticResource JoinModeToVisibility}, ConverterParameter=Join}"
+        <Button Content="Join as me"
                 IsEnabled="{Binding Busy, Converter={StaticResource InverseBooleanConverter}}"
                 Command="{Binding JoinCommand}"/>
         <Button Content="Cancel" Margin="8,0,0,0"

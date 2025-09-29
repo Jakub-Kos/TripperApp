@@ -37,12 +37,13 @@ public sealed partial class JoinTripViewModel : ObservableObject
     [RelayCommand]
     private async Task ClaimAsync()
     {
-        if (string.IsNullOrWhiteSpace(ClaimCode)) { Status = "Enter claim code."; return; }
+        var code = string.IsNullOrWhiteSpace(ClaimCode) ? InviteCode : ClaimCode;
+        if (string.IsNullOrWhiteSpace(code)) { Status = "Enter code."; return; }
         try
         {
             Busy = true; Status = "Claiming placeholder…";
             var dn = string.IsNullOrWhiteSpace(ClaimDisplayName) ? null : ClaimDisplayName;
-            await _client.ClaimPlaceholderAsync(ClaimCode, dn);
+            await _client.ClaimPlaceholderAsync(code, dn);
             Status = "Placeholder claimed.";
             Close?.Invoke(true);
         }
