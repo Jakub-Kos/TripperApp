@@ -4,6 +4,9 @@ using TripPlanner.Client.Abstractions;
 
 namespace TripPlanner.Client;
 
+/// <summary>
+/// DI helpers to register TripPlanner typed clients and auth plumbing.
+/// </summary>
 public static class ServiceCollectionExtensions
 {
     public sealed class Options { public string BaseAddress { get; set; } = "http://localhost:5162"; }
@@ -19,7 +22,7 @@ public static class ServiceCollectionExtensions
         // Provide a default IAuthState if the host app doesn't override it:
         services.TryAddSingleton<IAuthState, InMemoryAuthState>();
 
-        // 🔧 The important line: register the typed HttpClient for the INTERFACE
+        // The important line: register the typed HttpClient for the INTERFACE
         services.AddTransient<AuthHttpMessageHandler>();
         services.AddHttpClient<ITripPlannerClient, TripPlannerClient>(c => c.BaseAddress = new Uri(opts.BaseAddress))
             .AddHttpMessageHandler<AuthHttpMessageHandler>();

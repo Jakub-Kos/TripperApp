@@ -6,6 +6,10 @@ using TripPlanner.Core.Contracts.Contracts.Common.Participants;
 
 namespace TripPlanner.Client.Abstractions;
 
+/// <summary>
+/// High-level client interface for TripPlanner backend.
+/// Methods are grouped by feature area to aid discoverability.
+/// </summary>
 public interface ITripPlannerClient
 {
     Task<TripDto> CreateTripAsync(CreateTripRequest request, CancellationToken ct = default);

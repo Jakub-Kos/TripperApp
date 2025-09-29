@@ -10,7 +10,9 @@ using TripPlanner.Core.Contracts.Contracts.V1.Destinations;
 
 namespace TripPlanner.Client;
 
-
+/// <summary>
+/// Typed client for Destinations API, reused in WPF where a narrower surface is useful.
+/// </summary>
 internal sealed class DestinationsClient(HttpClient http) : IDestinationsApi
 {
     private readonly HttpClient _http = http;

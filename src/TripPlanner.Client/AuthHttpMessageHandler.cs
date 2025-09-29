@@ -4,6 +4,10 @@ using System.Threading.Tasks;
 
 namespace TripPlanner.Client;
 
+/// <summary>
+/// Delegating handler that attaches Bearer access token and refreshes on 401 once.
+/// Safe retry for idempotent requests only.
+/// </summary>
 public sealed class AuthHttpMessageHandler : DelegatingHandler
 {
     private readonly IAuthState _state;
@@ -16,6 +20,9 @@ public sealed class AuthHttpMessageHandler : DelegatingHandler
         _auth = auth;
     }
 
+    /// <summary>
+    /// Attaches access token, handles a single 401 by attempting token refresh and safe retry for GET/HEAD.
+    /// </summary>
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
     {
         await AttachAccessAsync(request, ct);

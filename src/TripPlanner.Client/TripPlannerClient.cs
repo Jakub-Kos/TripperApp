@@ -12,6 +12,10 @@ using TripPlanner.Core.Contracts.Contracts.Common.Participants;
 
 namespace TripPlanner.Client;
 
+/// <summary>
+/// High-level HTTP client for TripPlanner API. Methods are organized by feature areas
+/// (Trips, Destinations, Gear, Terms, Itinerary, Participants, Transportation, Invites).
+/// </summary>
 public sealed class TripPlannerClient(HttpClient http) : ITripPlannerClient
 {
     public async Task<TripDto> CreateTripAsync(CreateTripRequest request, CancellationToken ct = default)
@@ -350,6 +354,9 @@ public sealed class TripPlannerClient(HttpClient http) : ITripPlannerClient
         return false;
     }
 
+    /// <summary>
+    /// Reads an optional error payload and throws ApiException with details; otherwise ensures success.
+    /// </summary>
     private static async Task ThrowIfError(HttpResponseMessage res, string fallbackMessage, CancellationToken ct)
     {
         ErrorResponse? err = null;
