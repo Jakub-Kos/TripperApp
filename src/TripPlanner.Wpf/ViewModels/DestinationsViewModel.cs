@@ -11,6 +11,10 @@ using TripPlanner.Core.Contracts.Contracts.V1.Destinations;
 
 namespace TripPlanner.Wpf.ViewModels;
 
+/// <summary>
+/// Destinations tab: lists proposals, shows vote counts and voters, allows adding/editing,
+/// and lets the selected voter toggle votes.
+/// </summary>
 public sealed partial class DestinationsViewModel : ObservableObject
 {
     private readonly ITripPlannerClient _client;

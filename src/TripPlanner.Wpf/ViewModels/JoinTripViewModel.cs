@@ -8,6 +8,9 @@ namespace TripPlanner.Wpf.ViewModels;
 
 public enum JoinMode { ClaimPlaceholder, JoinAsMe }
 
+/// <summary>
+/// Dialog ViewModel for joining a trip: claim a placeholder with a claim code or join via invite code.
+/// </summary>
 public sealed partial class JoinTripViewModel : ObservableObject
 {
     private readonly ITripPlannerClient _client;

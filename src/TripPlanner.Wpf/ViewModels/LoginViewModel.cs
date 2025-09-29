@@ -6,6 +6,9 @@ using TripPlanner.Wpf.Auth;
 
 namespace TripPlanner.Wpf.ViewModels;
 
+/// <summary>
+/// Login screen ViewModel: handles sign-in and registration, storing tokens via WpfAuthState.
+/// </summary>
 public sealed class LoginViewModel : INotifyPropertyChanged
 {
     private readonly AuthClient _auth;

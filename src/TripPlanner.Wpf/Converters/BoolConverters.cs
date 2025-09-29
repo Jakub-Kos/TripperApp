@@ -4,6 +4,9 @@ using System.Windows.Data;
 
 namespace TripPlanner.Wpf.Converters
 {
+    /// <summary>
+    /// Returns logical negation for boolean values. Non-boolean inputs return Binding.DoNothing.
+    /// </summary>
     public sealed class BooleanNegationConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)

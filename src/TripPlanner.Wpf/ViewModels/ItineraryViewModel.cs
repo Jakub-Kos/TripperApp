@@ -10,6 +10,9 @@ using TripPlanner.Core.Contracts.Contracts.V1.Itinerary;
 
 namespace TripPlanner.Wpf.ViewModels;
 
+/// <summary>
+/// Itinerary tab: manage trip days and optional uploaded route files per day.
+/// </summary>
 public sealed partial class ItineraryViewModel : ObservableObject
 {
     private readonly ITripPlannerClient _client;

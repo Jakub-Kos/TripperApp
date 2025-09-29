@@ -6,6 +6,9 @@ using TripPlanner.Client.Abstractions;
 
 namespace TripPlanner.Wpf.ViewModels;
 
+/// <summary>
+/// Trip overview tab: displays and edits name, description, and finished flag.
+/// </summary>
 public partial class OverviewViewModel : ObservableObject
 {
     private readonly ITripPlannerClient _client;

@@ -5,6 +5,9 @@ using System.Windows.Media.Imaging;
 
 namespace TripPlanner.Wpf.Converters
 {
+    /// <summary>
+    /// Converts a URI/relative path string to a BitmapImage loaded on demand. Null/invalid input returns null.
+    /// </summary>
     public sealed class StringToImageSourceConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)

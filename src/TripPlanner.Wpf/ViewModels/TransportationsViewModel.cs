@@ -9,6 +9,9 @@ using TripPlanner.Client.Abstractions;
 
 namespace TripPlanner.Wpf.ViewModels;
 
+/// <summary>
+/// Transportations tab: manage transport options and attach route files or documents; organizer can choose one.
+/// </summary>
 public sealed partial class TransportationsViewModel : ObservableObject
 {
     private readonly ITripPlannerClient _client;

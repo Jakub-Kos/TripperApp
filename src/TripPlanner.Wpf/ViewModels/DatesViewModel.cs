@@ -11,6 +11,10 @@ using TripPlanner.Client.Abstractions;
 
 namespace TripPlanner.Wpf.ViewModels;
 
+/// <summary>
+/// Dates tab: organizer sets an overall date range; participants vote per-day and on proposed multi-day terms.
+/// Provides calendar with heatmap percentages and supports proxy voting for placeholders by the organizer.
+/// </summary>
 public sealed partial class DatesViewModel : ObservableObject
 {
     private readonly ITripPlannerClient _client;

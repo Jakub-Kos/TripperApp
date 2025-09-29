@@ -12,10 +12,18 @@ using TripPlanner.Wpf.Views;
 
 namespace TripPlanner.Wpf;
 
+/// <summary>
+/// WPF application entry point. Bootstraps DI, wires up the HTTP client, manages login flow
+/// and lifetime of the background host. Keep logic light here to maintain fast startup.
+/// </summary>
 public partial class App : Application
 {
     public static IHost Host { get; private set; } = default!;
 
+    /// <summary>
+    /// Application startup: builds and starts the Host, tries to refresh tokens, shows login if needed,
+    /// then displays MainWindow and triggers initial data load in the background.
+    /// </summary>
     protected override async void OnStartup(StartupEventArgs e)
     {
         Host = Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()

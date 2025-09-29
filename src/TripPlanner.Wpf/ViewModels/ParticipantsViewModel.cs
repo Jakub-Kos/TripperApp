@@ -9,6 +9,10 @@ using TripPlanner.Client.Abstractions;
 
 namespace TripPlanner.Wpf.ViewModels;
 
+/// <summary>
+/// Participants tab: lists trip participants, allows organizer to invite/remove and rename entries.
+/// Users can rename themselves; organizer can manage placeholders.
+/// </summary>
 public sealed partial class ParticipantsViewModel : ObservableObject
 {
     private readonly ITripPlannerClient _client;

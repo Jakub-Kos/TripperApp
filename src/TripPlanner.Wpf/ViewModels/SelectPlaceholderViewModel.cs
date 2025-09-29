@@ -9,6 +9,9 @@ using TripPlanner.Core.Contracts.Contracts.Common.Participants;
 
 namespace TripPlanner.Wpf.ViewModels;
 
+/// <summary>
+/// Dialog ViewModel listing placeholders in a trip so the user can claim one.
+/// </summary>
 public sealed partial class SelectPlaceholderViewModel : ObservableObject
 {
     private readonly ITripPlannerClient _client;

@@ -6,6 +6,9 @@ using System.Windows.Media;
 
 namespace TripPlanner.Wpf.Converters
 {
+    /// <summary>
+    /// Maps a 0..1 double to a white→green SolidColorBrush for simple heat-map like visualization.
+    /// </summary>
     public sealed class PercentToBrushConverter : IValueConverter
     {
         // Expects double in 0..1. Returns white -> green gradient.

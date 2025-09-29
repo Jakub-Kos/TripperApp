@@ -9,6 +9,10 @@ using TripPlanner.Core.Contracts.Contracts.V1.Trips;
 
 namespace TripPlanner.Wpf.ViewModels;
 
+/// <summary>
+/// Root ViewModel coordinating tabs and trip list. Loads trips, creates/deletes, and
+/// initializes individual tab ViewModels when selection changes.
+/// </summary>
 public partial class MainViewModel : ObservableObject
 {
     private readonly ITripPlannerClient _client;

@@ -9,6 +9,9 @@ using TripPlanner.Core.Contracts.Contracts.V1.Gear;
 
 namespace TripPlanner.Wpf.ViewModels;
 
+/// <summary>
+/// Gear tab: manage per-person and shared equipment, with per-user claims and simple presets.
+/// </summary>
 public sealed partial class GearViewModel : ObservableObject
 {
     private readonly ITripPlannerClient _client;

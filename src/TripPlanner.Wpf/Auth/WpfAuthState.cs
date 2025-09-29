@@ -2,6 +2,10 @@
 
 namespace TripPlanner.Wpf.Auth;
 
+/// <summary>
+/// Simple in-memory implementation of IAuthState for WPF that also writes the refresh token
+/// to disk via TokenStore so the user stays signed in between sessions.
+/// </summary>
 public sealed class WpfAuthState : IAuthState
 {
     private readonly TokenStore _store;

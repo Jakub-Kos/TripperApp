@@ -5,6 +5,10 @@ using System.Text.Json;
 
 namespace TripPlanner.Wpf.Auth;
 
+/// <summary>
+/// Persists a small encrypted payload for the current Windows user containing
+/// the refresh token (and an optional nickname). Uses DPAPI via ProtectedData.
+/// </summary>
 public sealed class TokenStore
 {
     private readonly string _path;

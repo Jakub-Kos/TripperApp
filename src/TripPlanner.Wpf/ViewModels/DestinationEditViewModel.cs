@@ -10,6 +10,9 @@ namespace TripPlanner.Wpf.ViewModels;
 
 public enum DestinationEditMode { Create, Edit }
 
+/// <summary>
+/// Dialog ViewModel for creating or editing a destination proposal.
+/// </summary>
 public sealed partial class DestinationEditViewModel : ObservableObject
 {
     private readonly ITripPlannerClient _client;
