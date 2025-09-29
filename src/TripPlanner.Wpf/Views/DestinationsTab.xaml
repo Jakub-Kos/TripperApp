@@ -45,7 +45,16 @@
 
         <ItemsControl.ItemTemplate>
           <DataTemplate>
-            <Border Style="{StaticResource Card}">
+            <Border>
+              <Border.Style>
+                <Style TargetType="Border" BasedOn="{StaticResource Card}">
+                  <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsMostVoted}" Value="True">
+                      <Setter Property="Background" Value="#FFF4C2"/>
+                    </DataTrigger>
+                  </Style.Triggers>
+                </Style>
+              </Border.Style>
               <Grid>
                 <!-- NORMAL CARD -->
                 <Grid x:Name="Normal" Visibility="Visible">
@@ -82,11 +91,20 @@
                   <!-- Votes + button -->
                   <DockPanel Grid.Row="3" LastChildFill="True">
                     <TextBlock Text="{Binding VoteCount, StringFormat=Votes: {0}}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                    <Button Content="Vote" Style="{StaticResource MutedButton}"
-                            HorizontalAlignment="Stretch"
-                            IsEnabled="{Binding IsSelectedVoterVoted, Converter={StaticResource NotBool}}"
+                    <Button HorizontalAlignment="Stretch"
                             Command="{Binding DataContext.ToggleVoteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                            CommandParameter="{Binding}"/>
+                            CommandParameter="{Binding}">
+                      <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource MutedButton}">
+                          <Setter Property="Content" Value="Vote"/>
+                          <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsSelectedVoterVoted}" Value="True">
+                              <Setter Property="Content" Value="Unvote"/>
+                            </DataTrigger>
+                          </Style.Triggers>
+                        </Style>
+                      </Button.Style>
+                    </Button>
                   </DockPanel>
                 </Grid>
 
@@ -101,8 +119,6 @@
                 <!-- Visual accents -->
                 <Border CornerRadius="12" BorderBrush="#2D7D46" BorderThickness="2" IsHitTestVisible="False"
                         Visibility="{Binding IsSelectedVoterVoted, Converter={StaticResource BoolToVis}}"/>
-                <Border CornerRadius="12" Background="#FFF4C2" Opacity="0.55" IsHitTestVisible="False"
-                        Visibility="{Binding IsMostVoted, Converter={StaticResource BoolToVis}}"/>
               </Grid>
 
               <!-- Switch normal vs add -->
