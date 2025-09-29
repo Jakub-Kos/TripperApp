@@ -1,0 +1,40 @@
+﻿<Window x:Class="TripPlanner.Wpf.Views.SelectPlaceholderDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Claim a placeholder" SizeToContent="WidthAndHeight"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        MinWidth="420" MinHeight="320">
+  <Grid Margin="16">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+    <TextBlock Text="Select a placeholder to claim" FontWeight="Bold" FontSize="16"/>
+
+    <Grid Grid.Row="1" Margin="0,8,0,0">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="*"/>
+      </Grid.RowDefinitions>
+
+      <ListBox ItemsSource="{Binding Items}"
+               SelectedItem="{Binding Selected, Mode=TwoWay}"
+               DisplayMemberPath="DisplayName"/>
+    </Grid>
+
+    <DockPanel Grid.Row="2" Margin="0,12,0,0">
+      <TextBlock DockPanel.Dock="Left" Text="{Binding Status}" Foreground="Gray" VerticalAlignment="Center"/>
+      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+        <Button Content="Claim" Margin="0,0,8,0"
+                IsDefault="True"
+                IsEnabled="{Binding CanClaim}"
+                Command="{Binding ClaimCommand}"/>
+        <Button Content="Cancel"
+                IsCancel="True"
+                Command="{Binding CancelCommand}"/>
+      </StackPanel>
+    </DockPanel>
+  </Grid>
+</Window>

@@ -51,6 +51,9 @@ public interface ITripPlannerClient
     /// <summary>Creates an invite and returns (code, url) or null if trip not found.</summary>
     Task<(string code, string url)?> CreateInviteAsync(string tripId, int? expiresInMinutes = null, int? maxUses = null, CancellationToken ct = default);
 
+    /// <summary>Resolve invite code to trip without joining. Returns (tripId, name) or null on invalid.</summary>
+    Task<(string tripId, string name)?> ResolveInviteAsync(string code, CancellationToken ct = default);
+
     /// <summary>Joins a trip by invite code. Returns true on success (204), false on invalid/expired code (400).</summary>
     Task<bool> JoinByCodeAsync(string code, CancellationToken ct = default);
 
@@ -101,6 +104,7 @@ public interface ITripPlannerClient
     Task<bool> DeleteParticipantAsync(string tripId, string participantId, CancellationToken ct = default);
     Task<(string code, string url)?> IssueClaimCodeAsync(string tripId, string participantId, int? expiresInMinutes = null, CancellationToken ct = default);
     Task<bool> ClaimPlaceholderAsync(string code, string? displayName = null, CancellationToken ct = default);
+    Task<bool> ClaimPlaceholderInTripAsync(string tripId, string participantId, CancellationToken ct = default);
 
     // Transportation APIs
     Task<IReadOnlyList<(string TransportationId, string Title, string? Description, bool IsChosen)>?> ListTransportationsAsync(string tripId, CancellationToken ct = default);

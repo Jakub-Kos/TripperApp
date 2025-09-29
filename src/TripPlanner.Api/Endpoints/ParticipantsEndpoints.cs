@@ -253,6 +253,40 @@ public static class ParticipantsEndpoints
             .Produces(StatusCodes.Status400BadRequest)
             .Produces(StatusCodes.Status401Unauthorized);
         
+        // New: Claim a placeholder by selecting it (no organizer code), as long as the user doesn't already have a participant in the trip
+        v1.MapPost("/trips/{tripId:guid}/placeholders/{participantId:guid}/claim", async (Guid tripId, Guid participantId, AppDbContext db, System.Security.Claims.ClaimsPrincipal user, CancellationToken ct) =>
+            {
+                var sub = user.FindFirst("sub")?.Value ?? user.FindFirst("nameid")?.Value;
+                if (!Guid.TryParse(sub, out var me)) return Results.Unauthorized();
+
+                // Ensure trip exists
+                var tripExists = await db.Trips.AnyAsync(t => t.TripId == tripId, ct);
+                if (!tripExists) return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip not found"));
+
+                // Ensure user does not already have a participant in this trip
+                var existingForUser = await db.Participants.FirstOrDefaultAsync(p => p.TripId == tripId && p.UserId == me, ct);
+                if (existingForUser is not null)
+                    return Results.BadRequest("You already have a participant in this trip. Cannot claim another.");
+
+                var placeholder = await db.Participants.FirstOrDefaultAsync(p => p.TripId == tripId && p.ParticipantId == participantId, ct);
+                if (placeholder is null) return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Placeholder not found"));
+                if (!placeholder.IsPlaceholder || placeholder.UserId != null)
+                    return Results.BadRequest("Selected participant is not a claimable placeholder.");
+
+                placeholder.UserId = me;
+                placeholder.IsPlaceholder = false;
+                placeholder.ClaimedAt = DateTimeOffset.UtcNow;
+                await db.SaveChangesAsync(ct);
+                return Results.NoContent();
+            })
+            .WithTags("Participants")
+            .WithSummary("Claim a placeholder by selection")
+            .WithDescription("Allows an authenticated user to claim a placeholder in the trip without a one-time code, provided they don't already have a participant in the trip.")
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status400BadRequest)
+            .Produces(StatusCodes.Status401Unauthorized);
+        
         return v1;
     }
 }

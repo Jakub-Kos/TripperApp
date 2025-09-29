@@ -41,11 +41,41 @@ public sealed partial class JoinTripViewModel : ObservableObject
         if (string.IsNullOrWhiteSpace(code)) { Status = "Enter code."; return; }
         try
         {
-            Busy = true; Status = "Claiming placeholder…";
-            var dn = string.IsNullOrWhiteSpace(ClaimDisplayName) ? null : ClaimDisplayName;
-            await _client.ClaimPlaceholderAsync(code, dn);
-            Status = "Placeholder claimed.";
-            Close?.Invoke(true);
+            Busy = true; Status = "Processing…";
+
+            // If user entered a claim code, try direct claim
+            if (!string.IsNullOrWhiteSpace(ClaimCode))
+            {
+                var dn = string.IsNullOrWhiteSpace(ClaimDisplayName) ? null : ClaimDisplayName;
+                await _client.ClaimPlaceholderAsync(ClaimCode, dn);
+                Status = "Placeholder claimed.";
+                Close?.Invoke(true);
+                return;
+            }
+
+            // Otherwise treat as invite code: resolve and open selection dialog
+            var resolved = await _client.ResolveInviteAsync(InviteCode);
+            if (resolved is null)
+            {
+                Status = "Invalid or expired invite code.";
+                return;
+            }
+
+            var tripId = resolved.Value.tripId;
+            // Open SelectPlaceholderDialog to pick one
+            var vm = new SelectPlaceholderViewModel(_client, tripId);
+            var dlg = new TripPlanner.Wpf.Views.SelectPlaceholderDialog(vm)
+            {
+                Owner = System.Windows.Application.Current?.MainWindow
+            };
+
+            Busy = false; // release busy before showing dialog
+            var ok = dlg.ShowDialog() == true;
+            if (ok)
+            {
+                Status = "Placeholder claimed.";
+                Close?.Invoke(true);
+            }
         }
         catch (Exception ex) { Status = ex.Message; }
         finally { Busy = false; }

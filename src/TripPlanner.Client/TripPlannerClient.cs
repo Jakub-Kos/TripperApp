@@ -249,6 +249,20 @@ public sealed class TripPlannerClient(HttpClient http) : ITripPlannerClient
         return (code, url);
     }
 
+    public async Task<(string tripId, string name)?> ResolveInviteAsync(string code, CancellationToken ct = default)
+    {
+        using var res = await http.GetAsync($"/api/v1/trips/resolve?code={Uri.EscapeDataString(code)}", ct);
+        if (res.StatusCode == HttpStatusCode.BadRequest) return null;
+        if (res.StatusCode == HttpStatusCode.NotFound) return null;
+        res.EnsureSuccessStatusCode();
+        var dict = await res.Content.ReadFromJsonAsync<Dictionary<string, object>>(cancellationToken: ct);
+        if (dict is null) return null;
+        var tripId = dict.TryGetValue("tripId", out var t) ? t?.ToString() : null;
+        var name = dict.TryGetValue("name", out var n) ? n?.ToString() : null;
+        if (tripId is null || name is null) return null;
+        return (tripId, name);
+    }
+
     public async Task<bool> JoinByCodeAsync(string code, CancellationToken ct = default)
     {
         using var res = await http.PostAsJsonAsync($"/api/v1/trips/join", new { code }, ct);
@@ -608,6 +622,16 @@ public sealed class TripPlannerClient(HttpClient http) : ITripPlannerClient
         if (res.StatusCode == HttpStatusCode.NoContent) return true;
         if (res.StatusCode == HttpStatusCode.BadRequest) return false;
         await ThrowIfError(res, "Failed to claim placeholder.", ct);
+        return false;
+    }
+
+    public async Task<bool> ClaimPlaceholderInTripAsync(string tripId, string participantId, CancellationToken ct = default)
+    {
+        using var res = await http.PostAsync($"/api/v1/trips/{tripId}/placeholders/{participantId}/claim", content: null, ct);
+        if (res.StatusCode == HttpStatusCode.NotFound) return false;
+        if (res.StatusCode == HttpStatusCode.NoContent) return true;
+        if (res.StatusCode == HttpStatusCode.BadRequest) return false;
+        await ThrowIfError(res, "Failed to claim placeholder in trip.", ct);
         return false;
     }
 

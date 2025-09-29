@@ -95,6 +95,26 @@ public static class InvitesEndpoints
             .Accepts<JoinTripRequest>("application/json")
             .Produces(StatusCodes.Status204NoContent)
             .Produces(StatusCodes.Status400BadRequest);
+
+        // New: Resolve invite code to trip without joining
+        v1.MapGet("/trips/resolve", async (string code, AppDbContext db, CancellationToken ct) =>
+            {
+                var norm = CodeUtils.NormalizeCode(code);
+                var hash = CodeUtils.Hash(norm);
+                var now = DateTimeOffset.UtcNow;
+                var invite = await db.TripInvites.FirstOrDefaultAsync(i => i.CodeHash == hash, ct);
+                if (invite is null || invite.RevokedAt != null || invite.ExpiresAt <= now)
+                    return Results.BadRequest("Invalid or expired code");
+                var trip = await db.Trips.Where(t => t.TripId == invite.TripId).Select(t => new { t.TripId, t.Name }).FirstOrDefaultAsync(ct);
+                if (trip is null) return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip not found"));
+                return Results.Ok(trip);
+            })
+            .WithTags("Invites")
+            .WithSummary("Resolve invite code")
+            .WithDescription("Returns the trip for a valid invite code without joining.")
+            .Produces(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status400BadRequest)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
         return v1;
     }
 }
