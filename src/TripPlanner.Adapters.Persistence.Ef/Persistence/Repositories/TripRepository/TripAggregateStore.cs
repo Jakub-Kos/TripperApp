@@ -46,41 +46,51 @@ internal sealed class TripAggregateStore
         header.Name = trip.Name;
         header.OrganizerId = trip.OrganizerId.Value;
 
-        // Replace Destinations for this Trip (simple, consistent v1 approach)
+        // Upsert Destinations for this Trip without touching existing votes
         var existing = await _db.Destinations
+            .Include(d => d.Images)
             .Where(d => d.TripId == trip.Id.Value)
             .ToListAsync(ct);
 
-        // Preserve creator metadata by DestinationId
-        var meta = existing.ToDictionary(d => d.DestinationId, d => new { d.CreatedByUserId, d.CreatedAt });
+        var existingMap = existing.ToDictionary(d => d.DestinationId, d => d);
 
-        _db.Destinations.RemoveRange(existing);
-
-        // Build a map of UserId -> ParticipantId for this trip (only claimed participants)
-        var participantMap = await _db.Participants
-            .Where(p => p.TripId == trip.Id.Value && p.UserId != null)
-            .ToDictionaryAsync(p => p.UserId!.Value, p => p.ParticipantId, ct);
-
-        var newRecs = trip.DestinationProposals.Select(p =>
+        foreach (var p in trip.DestinationProposals)
         {
-            meta.TryGetValue(p.Id.Value, out var m);
-            return new DestinationRecord
+            if (existingMap.TryGetValue(p.Id.Value, out var dest))
             {
-                DestinationId = p.Id.Value,
-                TripId = trip.Id.Value,
-                Title = p.Title,
-                Description = p.Description,
-                CreatedByUserId = m?.CreatedByUserId ?? Guid.Empty,
-                CreatedAt = m?.CreatedAt ?? default,
-                Images = p.ImageUrls.Select(u => new DestinationImageRecord { Url = u }).ToList(),
-                Votes = p.VotesBy
-                    .Where(v => participantMap.ContainsKey(v.Value))
-                    .Select(v => new DestinationVoteRecord { ParticipantId = participantMap[v.Value], UserId = v.Value })
-                    .ToList()
-            };
-        });
+                // Update simple fields
+                dest.Title = p.Title;
+                dest.Description = p.Description;
+                dest.IsChosen = p.IsChosen;
 
-        await _db.Destinations.AddRangeAsync(newRecs, ct);
+                // Sync images (replace with provided list)
+                var currentUrls = dest.Images.Select(i => i.Url).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                var newUrls = (p.ImageUrls ?? Enumerable.Empty<string>()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                // Remove images not in new list
+                foreach (var img in dest.Images.Where(i => !newUrls.Contains(i.Url)).ToList())
+                    _db.DestinationImages.Remove(img);
+
+                // Add missing
+                foreach (var url in newUrls.Where(u => !currentUrls.Contains(u)))
+                    _db.DestinationImages.Add(new DestinationImageRecord { DestinationId = dest.DestinationId, Url = url });
+            }
+            else
+            {
+                // New destination proposal -> create without any votes (votes, if any, are handled elsewhere)
+                var rec = new DestinationRecord
+                {
+                    DestinationId = p.Id.Value,
+                    TripId = trip.Id.Value,
+                    Title = p.Title,
+                    Description = p.Description,
+                    IsChosen = p.IsChosen,
+                    Images = p.ImageUrls.Select(u => new DestinationImageRecord { Url = u }).ToList()
+                };
+                await _db.Destinations.AddAsync(rec, ct);
+            }
+        }
+        // Note: We intentionally do not delete destinations that might be missing from the aggregate, to avoid accidental data loss.
         // Unit of Work will SaveChangesAsync
     }
 }
