@@ -61,8 +61,7 @@ internal static class TripMap
 
             // IMPORTANT: The aggregate's Participants contain participant IDs now.
             // We persist them as ParticipantRecord with UserId = null (placeholder by default).
-            // In practice, most participants will be added through commands (AddParticipant/AddPlaceholder),
-            // so you may also decide to leave this empty and let commands populate Participants.
+            // In practice, most participants will be added through commands (AddParticipant/AddPlaceholder)
             Participants = trip.Participants
                 .Select(pid => new ParticipantRecord
                 {

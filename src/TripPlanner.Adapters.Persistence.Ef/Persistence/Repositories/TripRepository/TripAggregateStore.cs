@@ -31,7 +31,6 @@ internal sealed class TripAggregateStore
     {
         var rec = TripMap.ToRecord(trip);
         _db.Trips.Add(rec);
-        // Unit of Work will call SaveChangesAsync
         return Task.CompletedTask;
     }
 
@@ -41,7 +40,7 @@ internal sealed class TripAggregateStore
         var exists = await _db.Trips.AnyAsync(t => t.TripId == trip.Id.Value, ct);
         if (!exists) throw new InvalidOperationException("Trip not found.");
 
-        // OPTIONAL: update simple fields if the aggregate allows it (name, organizer)
+        // Update simple fields if the aggregate allows it (name, organizer)
         var header = await _db.Trips.FirstAsync(t => t.TripId == trip.Id.Value, ct);
         header.Name = trip.Name;
         header.OrganizerId = trip.OrganizerId.Value;
@@ -91,6 +90,5 @@ internal sealed class TripAggregateStore
             }
         }
         // Note: We intentionally do not delete destinations that might be missing from the aggregate, to avoid accidental data loss.
-        // Unit of Work will SaveChangesAsync
     }
 }

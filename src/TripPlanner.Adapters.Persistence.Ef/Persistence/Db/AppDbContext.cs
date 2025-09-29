@@ -11,19 +11,26 @@ namespace TripPlanner.Adapters.Persistence.Ef.Persistence.Db;
 
 public sealed class AppDbContext : DbContext
 {
+    // General - Users, RefreshTokens
+    public DbSet<UserRecord> Users => Set<UserRecord>();
+    public DbSet<RefreshTokenRecord> RefreshTokens => Set<RefreshTokenRecord>();
+    
+    // Common - Trips, Participants, TripInvites, PlaceholderClaims
     public DbSet<TripRecord> Trips => Set<TripRecord>();
     public DbSet<ParticipantRecord> Participants => Set<ParticipantRecord>();
+    public DbSet<TripInviteRecord> TripInvites => Set<TripInviteRecord>();           
+    public DbSet<PlaceholderClaimRecord> PlaceholderClaims => Set<PlaceholderClaimRecord>();
+
+    // Date Options, Term Proposals, Votes
     public DbSet<DateOptionRecord> DateOptions => Set<DateOptionRecord>();
     public DbSet<DateVoteRecord> DateVotes => Set<DateVoteRecord>();
     public DbSet<TermProposalRecord> TermProposals => Set<TermProposalRecord>();
     public DbSet<TermProposalVoteRecord> TermProposalVotes => Set<TermProposalVoteRecord>();
+
+    // Destinations, Votes, Images
     public DbSet<DestinationRecord> Destinations => Set<DestinationRecord>();
     public DbSet<DestinationImageRecord> DestinationImages => Set<DestinationImageRecord>();
     public DbSet<DestinationVoteRecord> DestinationVotes => Set<DestinationVoteRecord>();
-    public DbSet<UserRecord> Users => Set<UserRecord>();
-    public DbSet<RefreshTokenRecord> RefreshTokens => Set<RefreshTokenRecord>();
-    public DbSet<TripInviteRecord> TripInvites => Set<TripInviteRecord>();           
-    public DbSet<PlaceholderClaimRecord> PlaceholderClaims => Set<PlaceholderClaimRecord>();
 
     // Transportation
     public DbSet<TransportationRecord> Transportations => Set<TransportationRecord>();
@@ -45,22 +52,26 @@ public sealed class AppDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
         
+        // General - Users, RefreshTokens
         modelBuilder.Entity<UserRecord>(ConfigureUser);
         modelBuilder.Entity<RefreshTokenRecord>(ConfigureRefreshToken);
+        
+        // Common - Trips, Participants, TripInvites, PlaceholderClaims
         modelBuilder.Entity<TripRecord>(ConfigureTrip);
         modelBuilder.Entity<ParticipantRecord>(ConfigureParticipant);
+        modelBuilder.Entity<TripInviteRecord>(ConfigureTripInvite);            
+        modelBuilder.Entity<PlaceholderClaimRecord>(ConfigurePlaceholderClaim); 
         
+        // Date Options, Term Proposals, Votes
         modelBuilder.Entity<DateOptionRecord>(ConfigureDateOption);
         modelBuilder.Entity<DateVoteRecord>(ConfigureDateVote);
         modelBuilder.Entity<TermProposalRecord>(ConfigureTermProposal);
         modelBuilder.Entity<TermProposalVoteRecord>(ConfigureTermProposalVote);
 
+        // Destinations, Votes, Images
         modelBuilder.Entity<DestinationRecord>(ConfigureDestination);
         modelBuilder.Entity<DestinationImageRecord>(ConfigureDestinationImage);
         modelBuilder.Entity<DestinationVoteRecord>(ConfigureDestinationVote);
-        
-        modelBuilder.Entity<TripInviteRecord>(ConfigureTripInvite);            
-        modelBuilder.Entity<PlaceholderClaimRecord>(ConfigurePlaceholderClaim); 
 
         // Transportation
         modelBuilder.Entity<TransportationRecord>(ConfigureTransportation);
@@ -374,7 +385,6 @@ public sealed class AppDbContext : DbContext
         e.Property(x => x.UploadedAt).IsRequired();
     }
 
-    // --- Itinerary configuration ---
     private static void ConfigureDay(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<DayRecord> e)
     {
         e.ToTable("TripDays");
@@ -449,7 +459,6 @@ public sealed class AppDbContext : DbContext
         e.HasIndex(x => new { x.DayId, x.RouteId });
     }
 
-    // --- Gear configuration ---
     private static void ConfigureGearItem(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<GearItemRecord> e)
     {
         e.ToTable("GearItems");

@@ -13,7 +13,6 @@ public sealed class TripRecord
     public string DescriptionMarkdown { get; set; } = "";
     public bool IsFinished { get; set; } = false;
 
-    // New: optional date range when the trip should take place
     public DateOnly? StartDate { get; set; }
     public DateOnly? EndDate { get; set; }
 
@@ -21,9 +20,6 @@ public sealed class TripRecord
     public List<DateOptionRecord> DateOptions { get; set; } = new();
     public ICollection<DestinationRecord> Destinations { get; set; } = new List<DestinationRecord>();
 
-    // New: list of proposed terms (start/end date pairs)
     public List<TermProposalRecord> TermProposals { get; set; } = new();
-
-    // New: transportation to the start of the trip
     public ICollection<TransportationRecord> Transportations { get; set; } = new List<TransportationRecord>();
 }

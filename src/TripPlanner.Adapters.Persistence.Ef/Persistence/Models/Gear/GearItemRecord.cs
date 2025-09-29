@@ -9,7 +9,7 @@ public sealed class GearItemRecord
     public Guid TripId { get; set; }
     public string Group { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
-    public string Provisioning { get; set; } = "EACH"; // store as string enum
+    public string Provisioning { get; set; } = "EACH"; // storing as a string enum
     public int? NeededQuantity { get; set; }
     public string TagsCsv { get; set; } = string.Empty; // simple storage for tags
 

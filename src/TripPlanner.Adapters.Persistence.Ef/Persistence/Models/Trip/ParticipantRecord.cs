@@ -11,8 +11,8 @@ public class ParticipantRecord
     public bool IsPlaceholder { get; set; }
     public string DisplayName { get; set; } = "";
     
-    public DateTimeOffset? ClaimedAt { get; set; }   // when placeholder claimed
-    public Guid CreatedByUserId { get; set; }        // who added this row
+    public DateTimeOffset? ClaimedAt { get; set; }   
+    public Guid CreatedByUserId { get; set; }      
     public TripRecord Trip { get; set; } = default!;
     public UserRecord? User { get; set; }
 }
