@@ -137,7 +137,7 @@ public static class DestinationEndpoints
             .Produces(StatusCodes.Status204NoContent)
             .Produces(StatusCodes.Status400BadRequest);
         
-        v1.MapGet("/trips/{tripId}/destinations",
+        v1.MapGet("/trips/{tripId}/destinations", 
                 async (string tripId, ListDestinationsHandler handler, CancellationToken ct) =>
                 {
                     var list = await handler.Handle(new ListDestinationsQuery(tripId), ct);
@@ -164,6 +164,11 @@ public static class DestinationEndpoints
                     if (dest is null)
                         return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip or destination not found"));
 
+                    var participantIds = dest.Votes
+                        .OrderBy(v => v.ParticipantId)
+                        .Select(v => v.ParticipantId.ToString("D"))
+                        .ToArray();
+
                     var dto = new
                     {
                         destinationId = dest.DestinationId,
@@ -173,7 +178,9 @@ public static class DestinationEndpoints
                         createdByUserId = dest.CreatedByUserId,
                         createdAt = dest.CreatedAt,
                         isChosen = dest.IsChosen,
-                        voters = dest.Votes.OrderBy(v => v.ParticipantId).Select(v => v.ParticipantId.ToString("D")).ToArray(),
+                        // Keep legacy property name and add the new one expected by clients
+                        voters = participantIds,
+                        participantIds = participantIds,
                         votesCount = dest.Votes.Count
                     };
                     return Results.Ok(dto);
@@ -181,6 +188,28 @@ public static class DestinationEndpoints
             .WithTags("Destinations")
             .WithSummary("Get destination proposal detail")
             .WithDescription("Returns destination detail including image URLs and participantIds of voters.")
+            .Produces(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+
+        // GET votes for a specific destination proposal
+        v1.MapGet("/trips/{tripId:guid}/destinations/{destinationId:guid}/votes",
+                async (Guid tripId, Guid destinationId, AppDbContext db, CancellationToken ct) =>
+                {
+                    var dest = await db.Destinations.AsNoTracking()
+                        .FirstOrDefaultAsync(d => d.TripId == tripId && d.DestinationId == destinationId, ct);
+                    if (dest is null)
+                        return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip or destination not found"));
+
+                    var votes = await db.DestinationVotes.AsNoTracking()
+                        .Where(v => v.DestinationId == destinationId)
+                        .OrderBy(v => v.ParticipantId)
+                        .Select(v => v.ParticipantId.ToString("D"))
+                        .ToListAsync(ct);
+                    return Results.Ok(votes);
+                })
+            .WithTags("Destinations")
+            .WithSummary("Get votes for a destination proposal")
+            .WithDescription("Returns participantIds who voted for the given destination proposal.")
             .Produces(StatusCodes.Status200OK)
             .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
 
