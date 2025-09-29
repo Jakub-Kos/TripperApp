@@ -6,14 +6,14 @@ This document explains **how login/registration works**, where credentials/token
 
 ## High‑level picture
 
-* **Identity store**: your API (TripPlanner.Api) keeps users in EF Core (SQLite).
+* **Identity store**: the API (TripPlanner.Api) keeps users in EF Core (SQLite).
 * **Password hashing**: BCrypt (tunable work factor) – plaintext passwords are never stored.
 * **Tokens**:
 
-    * **Access token**: short‑lived **JWT** issued and signed by **your API** (HMAC SHA‑256) with `Issuer/Audience` from config.
+    * **Access token**: short‑lived **JWT** issued and signed by **the API** (HMAC SHA‑256) with `Issuer/Audience` from config.
     * **Refresh token**: random, opaque string stored **server‑side** (DB) with expiration & revocation.
 * **Client (WPF)** stores tokens **locally per user** and automatically attaches/refreshes them for API calls.
-* **Optional**: Google Sign‑In. WPF gets a Google **ID token** and sends it to `/auth/google`. The API verifies it with Google and **still issues your own JWT + refresh**.
+* **Optional**: Google Sign‑In. WPF gets a Google **ID token** and sends it to `/auth/google`. The API verifies it with Google and **still issues user's own JWT + refresh**.
 
 ---
 
@@ -105,7 +105,7 @@ sequenceDiagram
 
 ## Server storage (EF Core + SQLite)
 
-**Tables** (names may differ depending on your DbContext config):
+**Tables** (names may differ depending on DbContext config):
 
 * `Users` (`UserRecord`):
 
@@ -157,7 +157,7 @@ sequenceDiagram
 
 ## Who is the token provider?
 
-* **Your API** is the **Security Token Service (STS)** for **access tokens** (JWT) and **refresh tokens**.
+* **The API** is the **Security Token Service (STS)** for **access tokens** (JWT) and **refresh tokens**.
 * With Google Sign‑In enabled:
 
     * **Google** is only the **external identity provider**. The API verifies the Google **ID token** and then **issues its own JWT** and refresh token for the app — so your API remains the ultimate authority for protected endpoints.
@@ -228,7 +228,7 @@ sequenceDiagram
 
 ## Security properties & notes
 
-**What you have:**
+**What we have:**
 
 * **BCrypt** password hashing (resistant to GPU attacks with proper work factor)
 * **Short‑lived JWT** + **rotating refresh tokens** (revocable, server‑tracked)
