@@ -2,83 +2,58 @@
 
 namespace TripPlanner.Core.Domain.Domain.Aggregates;
 
+/// <summary>
+/// Aggregate root representing a trip. Holds metadata, participants, date options, and destination proposals.
+/// </summary>
 public sealed class Trip
 {
+    // Backing collections (mutated internally only)
     private readonly HashSet<UserId> _participants = new();
     private readonly List<DateOption> _dateOptions = new();
     private readonly List<DestinationProposal> _destinationProposals = new();
-    public IReadOnlyCollection<DestinationProposal> DestinationProposals => _destinationProposals; 
-    
+
+    /// <summary>Trip identifier.</summary>
     public TripId Id { get; private set; }
+
+    /// <summary>Display name of the trip.</summary>
     public string Name { get; private set; }
+
+    /// <summary>User who created/organizes the trip.</summary>
     public UserId OrganizerId { get; private set; }
+
+    /// <summary>Participants invited to or attending the trip.</summary>
     public IReadOnlyCollection<UserId> Participants => _participants;
+
+    /// <summary>All proposed date options with votes.</summary>
     public IReadOnlyCollection<DateOption> DateOptions => _dateOptions;
 
-    // Date range for when the trip should take place (inclusive). If null, no range defined yet.
+    /// <summary>All proposed destinations with votes.</summary>
+    public IReadOnlyCollection<DestinationProposal> DestinationProposals => _destinationProposals;
+
+    /// <summary>
+    /// Date range (inclusive) for when the trip should take place. If nulls, no range is defined yet.
+    /// </summary>
     public DateOnly? StartDate { get; private set; }
     public DateOnly? EndDate { get; private set; }
-    
+
     private Trip(TripId id, string name, UserId organizerId)
     {
-        Id = id; Name = name; OrganizerId = organizerId;
+        Id = id;
+        Name = name;
+        OrganizerId = organizerId;
     }
 
+    /// <summary>Factory for creating a new trip.</summary>
     public static Trip Create(string name, UserId organizer)
     {
-        // TODO validate
+        // TODO: add richer validation as needed
         return new Trip(TripId.New(), name.Trim(), organizer);
     }
 
-    public void AddParticipant(UserId user) => _participants.Add(user);
-    
-    public void SetDateRange(DateOnly start, DateOnly end)
-    {
-        if (end < start) throw new ArgumentException("End date must be on or after start date.");
-        StartDate = start;
-        EndDate = end;
-    }
-
-    public DateOption VoteOnDate(DateOnly date, UserId voter)
-    {
-        // If a range is set, enforce it
-        if (StartDate is not null && EndDate is not null)
-        {
-            if (date < StartDate.Value || date > EndDate.Value)
-                throw new InvalidOperationException("Date is outside the allowed trip range.");
-        }
-        var opt = _dateOptions.FirstOrDefault(d => d.Date == date);
-        if (opt is null)
-        {
-            opt = new DateOption(DateOptionId.New(), date);
-            _dateOptions.Add(opt);
-        }
-        opt.CastVote(voter);
-        return opt;
-    }
-
-    // Legacy: still allow creating option without a vote (internal usage)
-    public DateOption ProposeDate(DateOnly date)
-    {
-        var opt = _dateOptions.FirstOrDefault(d => d.Date == date);
-        if (opt is null)
-        {
-            opt = new DateOption(DateOptionId.New(), date);
-            _dateOptions.Add(opt);
-        }
-        return opt;
-    }
-
-    public void CastVote(DateOptionId optId, UserId voter)
-    {
-        var opt = _dateOptions.FirstOrDefault(o => o.Id == optId)
-                  ?? throw new InvalidOperationException("Date option not found.");
-        opt.CastVote(voter);
-    }
-
+    /// <summary>Rehydrates a trip from persisted state including participants, date options and destinations.</summary>
     public static Trip Rehydrate(
-        TripId id, 
-        string name, 
+        TripId id,
+        string name,
         UserId organizerId,
         IEnumerable<UserId> participants,
         IEnumerable<(DateOptionId optId, DateOnly date, IEnumerable<UserId> votes, bool isChosen)> dateOptions,
@@ -86,9 +61,11 @@ public sealed class Trip
         DateOnly? startDate = null,
         DateOnly? endDate = null)
     {
-        var t = new Trip(id, name, organizerId);
-        t.StartDate = startDate;
-        t.EndDate = endDate;
+        var t = new Trip(id, name, organizerId)
+        {
+            StartDate = startDate,
+            EndDate = endDate
+        };
 
         // participants
         if (participants is not null)
@@ -129,6 +106,66 @@ public sealed class Trip
         return t;
     }
 
+    // Participants -----------------------------------------------------------
+
+    /// <summary>Adds a participant to the trip.</summary>
+    public void AddParticipant(UserId user) => _participants.Add(user);
+
+    // Date options -----------------------------------------------------------
+
+    /// <summary>Sets the valid date range for the trip (inclusive).</summary>
+    public void SetDateRange(DateOnly start, DateOnly end)
+    {
+        if (end < start) throw new ArgumentException("End date must be on or after start date.");
+        StartDate = start;
+        EndDate = end;
+    }
+
+    /// <summary>
+    /// Creates the date option for the specified date if missing and casts a vote from the given user.
+    /// Enforces the configured date range if present.
+    /// </summary>
+    public DateOption VoteOnDate(DateOnly date, UserId voter)
+    {
+        // If a range is set, enforce it
+        if (StartDate is not null && EndDate is not null)
+        {
+            if (date < StartDate.Value || date > EndDate.Value)
+                throw new InvalidOperationException("Date is outside the allowed trip range.");
+        }
+        var opt = _dateOptions.FirstOrDefault(d => d.Date == date);
+        if (opt is null)
+        {
+            opt = new DateOption(DateOptionId.New(), date);
+            _dateOptions.Add(opt);
+        }
+        opt.CastVote(voter);
+        return opt;
+    }
+
+    /// <summary>Creates or returns an existing date option without casting a vote.</summary>
+    public DateOption ProposeDate(DateOnly date)
+    {
+        var opt = _dateOptions.FirstOrDefault(d => d.Date == date);
+        if (opt is null)
+        {
+            opt = new DateOption(DateOptionId.New(), date);
+            _dateOptions.Add(opt);
+        }
+        return opt;
+    }
+
+    /// <summary>Casts a vote for an existing date option by its identifier.</summary>
+    public void CastVote(DateOptionId optId, UserId voter)
+    {
+        var opt = _dateOptions.FirstOrDefault(o => o.Id == optId)
+                  ?? throw new InvalidOperationException("Date option not found.");
+        opt.CastVote(voter);
+    }
+
+    // Destinations -----------------------------------------------------------
+
+    /// <summary>Creates a new destination proposal and returns its identifier.</summary>
     public DestinationId ProposeDestination(string title, string? description, IEnumerable<string> imageUrls)
     {
         var p = new DestinationProposal(DestinationId.New(), title, description, imageUrls);
@@ -136,6 +173,7 @@ public sealed class Trip
         return p.Id;
     }
 
+    /// <summary>Adds a vote for the given destination proposal; returns false if already voted.</summary>
     public bool VoteDestination(DestinationId destinationId, UserId voter)
     {
         var p = _destinationProposals.FirstOrDefault(x => x.Id.Equals(destinationId));
