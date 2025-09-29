@@ -43,17 +43,17 @@ Running the app
   [Screenshot placeholder: Login screen] (./images/placeholder-login.png)
 
 - Home and Navigation
-  The main window organizes features into tabs: Dates, Destinations, Gear, Itinerary, Participants.
+  The main window organizes features into tabs: Dates, Destinations, Gear, Participants.
   [Screenshot placeholder: Main window with tabs] (./images/placeholder-main-tabs.png)
 
 Creating and managing a trip
-- Create a new trip with a name and optional description. Trips have statuses (e.g., Draft, Active, Archived).
+- Create a new trip with a name and optional description. Trips have statuses (e.g., Active, Finished).
 - As an organizer you can change status or archive a trip once finished.
 [Screenshot placeholder: Create trip form] (./images/placeholder-create-trip.png)
 
 Inviting participants
-- Generate an invite link or code from the Participants tab.
-- Share the link via chat/email. Participants can join by pasting the code or opening the link.
+- Generate an invite code from the Participants tab.
+- Share the code via chat/email. Participants can join by pasting the code.
 [Screenshot placeholder: Invite participants dialog] (./images/placeholder-invite.png)
 
 Mermaid: Invite flow (user perspective)
@@ -107,7 +107,10 @@ API connection note
 
 Proposing dates and voting
 - Open the Dates tab.
-- Add one or more date options for the group to consider.
+- Edit the trip date interval, this causes the calendar to zoom in on those dates
+- Click to vote on the individual dates, as yourself or as a proxy
+- Each date will display the number of votes and it will become greener to higher to participants percentage has voted on this 
+- Add one or more term options for the group to consider.
 - Vote for your preferred dates; tally updates in real time.
 [Screenshot placeholder: Dates tab] (./images/placeholder-dates.png)
 
@@ -120,14 +123,9 @@ graph TD
 ```
 
 Managing gear
-- In the Gear tab, propose items and assign them to participants.
+- In the Gear tab, propose items in groups and set their goal coumt
 - Track who brings what to avoid duplicates.
 [Screenshot placeholder: Gear tab] (./images/placeholder-gear.png)
-
-Building your itinerary
-- In the Itinerary tab, add items like travel segments, activities, and notes.
-- Reorder or edit as plans change.
-[Screenshot placeholder: Itinerary tab] (./images/placeholder-itinerary.png)
 
 Tips and best practices
 - Use clear names and descriptions for destinations and gear.
