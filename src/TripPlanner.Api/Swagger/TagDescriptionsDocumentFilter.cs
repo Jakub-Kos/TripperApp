@@ -8,6 +8,7 @@ namespace TripPlanner.Api.Swagger;
 /// </summary>
 public sealed class TagDescriptionsDocumentFilter : IDocumentFilter
 {
+    /// <inheritdoc />
     public void Apply(OpenApiDocument swaggerDoc, DocumentFilterContext context)
     {
         // Define preferred order and descriptions

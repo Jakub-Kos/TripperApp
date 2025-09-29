@@ -10,13 +10,20 @@ using TripPlanner.Core.Contracts.Contracts.V1.Trips;
 
 namespace TripPlanner.Api.Endpoints;
 
+/// <summary>
+/// Minimal API endpoints for managing trip date ranges and date voting.
+/// </summary>
 public static class DateEndpoints
 {
+    // Request contracts used by the endpoints
     public record DateSelfVoteRequest(string Date); // YYYY-MM-DD
     public record DateProxyVoteRequest(string Date, string ParticipantId);
     public record SetDateRangeRequest(string Start, string End); // YYYY-MM-DD
     public record ChooseDateRequest(string Date); // YYYY-MM-DD
     
+    /// <summary>
+    /// Registers date-related endpoints under the provided route builder.
+    /// </summary>
     public static IEndpointRouteBuilder MapDateEndpoints(this IEndpointRouteBuilder v1)
     {
         v1.MapPut("/trips/{tripId:guid}/date-range",

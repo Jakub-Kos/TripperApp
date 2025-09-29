@@ -8,10 +8,17 @@ using TripPlanner.Core.Contracts.Contracts.V1.Trips;
 
 namespace TripPlanner.Api.Endpoints;
 
+/// <summary>
+/// Minimal API endpoints for creating trips, managing descriptions, and listing user trips.
+/// </summary>
 public static class TripsEndpoints
 {
+    // Request contracts used by the endpoints
     public record UpdateTripStatusRequest(bool IsFinished);
     
+    /// <summary>
+    /// Registers trips-related endpoints.
+    /// </summary>
     public static IEndpointRouteBuilder MapTripsEndpoints(this IEndpointRouteBuilder v1)
     {
         v1.MapPost("/trips",

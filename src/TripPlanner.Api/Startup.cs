@@ -22,6 +22,10 @@ namespace TripPlanner.Api;
 // This Startup class exists to support tools (like Swashbuckle CLI) that
 // expect the classic Startup pattern. The runtime app still uses minimal
 // hosting in Program.cs. Keep registrations aligned with Program.cs.
+/// <summary>
+/// Classic Startup class kept for tooling compatibility (e.g., Swashbuckle CLI).
+/// The production app uses minimal hosting in Program.cs.
+/// </summary>
 public class Startup
 {
     private readonly IConfiguration _configuration;
@@ -33,6 +37,9 @@ public class Startup
         _env = env;
     }
 
+    /// <summary>
+    /// Registers services mirroring those in Program.cs for Swagger tooling and compatibility.
+    /// </summary>
     public void ConfigureServices(IServiceCollection services)
     {
         // Validation
@@ -69,6 +76,9 @@ public class Startup
         services.AddSingleton<IClock, SystemClock>();
     }
 
+    /// <summary>
+    /// Configures a minimal middleware pipeline for tooling scenarios.
+    /// </summary>
     public void Configure(IApplicationBuilder app)
     {
         // For CLI generation, middleware pipeline is not crucial, but

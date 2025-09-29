@@ -3,11 +3,20 @@ using System.Text;
 
 namespace TripPlanner.Api.Infrastructure;
 
+/// <summary>
+/// Helpers for generating and working with short human-friendly codes and hashes.
+/// </summary>
 public static class CodeUtils
 {
+    /// <summary>
+    /// Normalizes a human-entered code by trimming spaces, uppercasing, and removing separators.
+    /// </summary>
     public static string NormalizeCode(string raw)
         => new(raw.Trim().ToUpperInvariant().Where(ch => ch != '-' && ch != ' ').ToArray());
 
+    /// <summary>
+    /// Computes a lowercase hex SHA-256 hash of the input text.
+    /// </summary>
     public static string Hash(string text)
     {
         var bytes = Encoding.UTF8.GetBytes(text);
@@ -17,6 +26,9 @@ public static class CodeUtils
         return sb.ToString();
     }
 
+    /// <summary>
+    /// Generates a short, URL-safe code using a Crockford Base32 alphabet (avoids ambiguous characters).
+    /// </summary>
     public static string GenerateFriendlyCode(int length)
     {
         // Crockford Base32 (no I, L, O, U)

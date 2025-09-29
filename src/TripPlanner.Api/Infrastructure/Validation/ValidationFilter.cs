@@ -4,8 +4,13 @@ using TripPlanner.Core.Contracts.Common;
 
 namespace TripPlanner.Api.Infrastructure.Validation;
 
+/// <summary>
+/// Minimal API endpoint filter that runs a FluentValidation validator for the incoming request DTO.
+/// If validation fails, returns a 400 response with aggregated error messages.
+/// </summary>
 public sealed class ValidationFilter<TRequest> : IEndpointFilter where TRequest : class
 {
+    /// <inheritdoc />
     public async ValueTask<object?> InvokeAsync(EndpointFilterInvocationContext ctx, EndpointFilterDelegate next)
     {
         var validator = ctx.HttpContext.RequestServices.GetService<IValidator<TRequest>>();

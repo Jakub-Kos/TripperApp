@@ -3,9 +3,14 @@ using System.Text;
 
 namespace TripPlanner.Api.Auth;
 
+/// <summary>
+/// Utility for hashing tokens for storage/lookup. Supports optional HMAC with a secret pepper.
+/// </summary>
 internal static class TokenHasher
 {
-    // If "pepper" (secret) in config is set, then HMAC will be used; otherwise plain SHA-256.
+    /// <summary>
+    /// Computes a hex-encoded hash of the provided token. If a pepper is provided, uses HMAC-SHA256; otherwise SHA-256.
+    /// </summary>
     public static string Hash(string token, string? pepper = null)
     {
         if (!string.IsNullOrWhiteSpace(pepper))

@@ -6,6 +6,9 @@ using TripPlanner.Core.Contracts.Contracts.V1.Gear;
 
 namespace TripPlanner.Api.Endpoints;
 
+/// <summary>
+/// Minimal API endpoints for managing gear items, grouping, and assignments for trips.
+/// </summary>
 public static class GearEndpoints
 {
     // Internal DTOs to make bulk binding robust in System.Text.Json

@@ -4,6 +4,7 @@ using TripPlanner.Core.Contracts.Contracts.V1.Trips;
 
 namespace TripPlanner.Api.Swagger.Examples;
 
+// Example providers used by Swagger to illustrate request/response payloads.
 public sealed class CreateTripRequestExample : IExamplesProvider<CreateTripRequest>
 {
     public CreateTripRequest GetExamples() =>

@@ -7,8 +7,14 @@ using TripPlanner.Core.Contracts.Contracts.V1.Itinerary;
 
 namespace TripPlanner.Api.Endpoints;
 
+/// <summary>
+/// Minimal API endpoints for managing itinerary days, items, and routes within a trip.
+/// </summary>
 public static class ItineraryEndpoints
 {
+    /// <summary>
+    /// Registers itinerary-related endpoints.
+    /// </summary>
     public static IEndpointRouteBuilder MapItineraryEndpoints(this IEndpointRouteBuilder v1)
     {
         // Days

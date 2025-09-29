@@ -6,11 +6,18 @@ using TripPlanner.Core.Contracts.Common;
 
 namespace TripPlanner.Api.Endpoints;
 
+/// <summary>
+/// Minimal API endpoints for creating and resolving trip invite codes.
+/// </summary>
 public static class InvitesEndpoints
 {
+    // Request contracts used by the endpoints
     public record CreateInviteRequest(int? ExpiresInMinutes, int? MaxUses);
     public record JoinTripRequest(string Code);
     
+    /// <summary>
+    /// Registers invite-related endpoints.
+    /// </summary>
     public static IEndpointRouteBuilder MapInvitesEndpoints(this IEndpointRouteBuilder v1)
     {
         v1.MapPost("/trips/{tripId:guid}/invites",

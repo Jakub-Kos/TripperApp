@@ -6,13 +6,20 @@ using TripPlanner.Core.Contracts.Common;
 
 namespace TripPlanner.Api.Endpoints;
 
+/// <summary>
+/// Minimal API endpoints for managing trip participants and placeholder claims.
+/// </summary>
 public static class ParticipantsEndpoints
 {
+    // Request contracts used by the endpoints
     public record CreatePlaceholderRequest(string DisplayName);
     public record IssueClaimCodeRequest(int? ExpiresInMinutes);
     public record ClaimPlaceholderRequest(string Code, string? DisplayName);
     public record UpdateParticipantDisplayNameRequest(string DisplayName);
     
+    /// <summary>
+    /// Registers participant-related endpoints.
+    /// </summary>
     public static IEndpointRouteBuilder MapParticipantsEndpoints(this IEndpointRouteBuilder v1)
     {
         // List participants (including placeholders)

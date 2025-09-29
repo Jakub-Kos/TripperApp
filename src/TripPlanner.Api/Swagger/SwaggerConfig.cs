@@ -5,9 +5,15 @@ using TripPlanner.Api.Swagger.Examples;
 
 namespace TripPlanner.Api.Swagger;
 
+/// <summary>
+/// Helpers for registering and configuring Swagger/OpenAPI for the TripPlanner API.
+/// Keeps all swagger-related knobs in one place.
+/// </summary>
 public static class SwaggerConfig
 {
-    
+    /// <summary>
+    /// Registers and configures Swagger generation, security, examples, and schema mappings.
+    /// </summary>
     public static IServiceCollection AddTripPlannerSwagger(this IServiceCollection services)
     {
         services.AddSwaggerGen(c =>

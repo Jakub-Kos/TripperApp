@@ -6,8 +6,15 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace TripPlanner.Api.Auth;
 
+/// <summary>
+/// Dependency injection helpers for configuring JWT authentication and authorization.
+/// </summary>
 public static class ServiceCollectionExtensions
 {
+    /// <summary>
+    /// Registers JWT authentication, authorization, and related services.
+    /// Uses configuration from the "Jwt" section and applies sensible defaults for tooling.
+    /// </summary>
     public static IServiceCollection AddJwtAuth(this IServiceCollection services, IConfiguration cfg)
     {
         var opts = new JwtOptions();

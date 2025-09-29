@@ -59,6 +59,7 @@ services.AddScoped<ProposeDestinationHandler>();
 services.AddScoped<VoteDestinationHandler>();
 
 // Persistence (EF + SQLite)
+// Detect if the host is a test runner to isolate DB files for parallel tests.
 bool IsRunningInTests()
 {
     try

@@ -7,11 +7,18 @@ using TripPlanner.Core.Contracts.Common;
 
 namespace TripPlanner.Api.Endpoints;
 
+/// <summary>
+/// Minimal API endpoints for proposing term (date range) options and voting on them.
+/// </summary>
 public static class TermEndpoints
 {
+    // Request contracts used by the endpoints
     public record ProposeTermRequest(string Start, string End); // YYYY-MM-DD
     public record TermProxyVoteRequest(string ParticipantId);
 
+    /// <summary>
+    /// Registers term-related endpoints.
+    /// </summary>
     public static IEndpointRouteBuilder MapTermEndpoints(this IEndpointRouteBuilder v1)
     {
         v1.MapPost("/trips/{tripId:guid}/term-proposals", async (Guid tripId, ProposeTermRequest req, AppDbContext db, System.Security.Claims.ClaimsPrincipal user, CancellationToken ct) =>

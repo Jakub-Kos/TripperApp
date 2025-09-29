@@ -3,10 +3,17 @@ using TripPlanner.Adapters.Persistence.Ef.Persistence.Db;
 
 namespace TripPlanner.Api.Endpoints;
 
+/// <summary>
+/// Minimal API endpoints for user self-service operations (e.g., profile updates, self-delete).
+/// </summary>
 public static class UsersEndpoints
 {
+    // Request contracts used by the endpoints
     public record UpdateDisplayNameRequest(string DisplayName);
 
+    /// <summary>
+    /// Registers user-related endpoints.
+    /// </summary>
     public static IEndpointRouteBuilder MapUsersEndpoints(this IEndpointRouteBuilder v1)
     {
         // Update current user's display name

@@ -6,11 +6,18 @@ using TripPlanner.Core.Contracts.Common;
 
 namespace TripPlanner.Api.Endpoints;
 
+/// <summary>
+/// Minimal API endpoints for managing transportation to the trip start (with documents and routes).
+/// </summary>
 public static class TransportationEndpoints
 {
+    // Request contracts used by the endpoints
     public record CreateTransportationRequest(string Title, string? Description);
     public record UpdateTransportationRequest(string Title, string? Description);
 
+    /// <summary>
+    /// Registers transportation-related endpoints.
+    /// </summary>
     public static IEndpointRouteBuilder MapTransportationEndpoints(this IEndpointRouteBuilder v1)
     {
         // Create transportation item

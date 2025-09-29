@@ -11,10 +11,17 @@ using TripPlanner.Core.Contracts.Contracts.V1.Destinations;
 
 namespace TripPlanner.Api.Endpoints;
 
+/// <summary>
+/// Minimal API endpoints for proposing destinations and voting on them within a trip.
+/// </summary>
 public static class DestinationEndpoints
 {
+    // Request contracts used by the endpoints
     public record DestinationProxyVoteRequest(string ParticipantId);
     
+    /// <summary>
+    /// Registers destination-related endpoints.
+    /// </summary>
     public static IEndpointRouteBuilder MapDestinationEndpoints(this IEndpointRouteBuilder v1)
     {
         v1.MapPost("/trips/{tripId:guid}/destinations/{destinationId:guid}/votes",
