@@ -1,6 +1,6 @@
 ﻿# TripPlanner User Guide
 
-Last updated: 2025-09-29 12:21
+Last updated: 2025-09-29 14:48
 
 This guide helps you install, run, and use TripPlanner to plan trips collaboratively: propose destinations and dates, vote, manage gear, invite participants, and build an itinerary.
 
@@ -102,6 +102,8 @@ Frontend specifics (Destinations)
 
 API connection note
 - The WPF app talks to the API over HTTP. The base address is configurable by the host application via TripPlanner.Client.Configuration.TripPlannerClientOptions.BaseAddress. By default in local runs it points to http://localhost:5162.
+- In the WPF app, this can also be provided via appsettings at src/TripPlanner.Wpf/appsettings.json under TripPlanner:BaseAddress.
+- Your refresh token is stored securely per Windows user at %LOCALAPPDATA%\TripperApp\tokens.dat. Use the in-app sign-out (if available) or delete this file to force sign-out on next launch.
 
 Proposing dates and voting
 - Open the Dates tab.

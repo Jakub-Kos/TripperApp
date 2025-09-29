@@ -1,6 +1,6 @@
 ﻿# TripPlanner Developer Guide
 
-Last updated: 2025-09-29 12:21
+Last updated: 2025-09-29 14:48
 
 This guide provides architecture, conventions, and workflows for contributing to TripPlanner. It targets .NET developers building the API, domain, adapters, client SDK, and WPF app.
 
@@ -98,6 +98,9 @@ Configuration and secrets
 Client SDK configuration
 - The WPF and other .NET frontends use TripPlanner.Client.
 - Configure API base address via TripPlanner.Client.Configuration.TripPlannerClientOptions.BaseAddress (e.g., http://localhost:5162).
+- WPF reads TripPlanner:BaseAddress from src/TripPlanner.Wpf/appsettings.json when using AddDestinationsClient(); otherwise set via DI as above.
+- Auth handler attaches/refreshes JWTs using IAuthState.
+- Token persistence (WPF): refresh token is stored encrypted per Windows user at %LOCALAPPDATA%\TripperApp\tokens.dat (DPAPI). Provide in-app sign-out or delete this file to force sign-out.
 - Prefer injecting a single HttpClient instance configured with authentication handlers.
 
 Database and EF Core migrations

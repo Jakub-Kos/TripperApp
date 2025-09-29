@@ -44,6 +44,19 @@ tools/
   smoke-api.ps1                      # End-to-end API smoke script
 ```
 
+### Per-project READMEs
+- src/TripPlanner.Api/README.md — API developer guide (endpoints, auth, EF, Swagger)
+- src/TripPlanner.Client/README.md — typed HTTP client (DI, auth handler, usage)
+- src/TripPlanner.Core.Domain/README.md — domain model and invariants
+- src/TripPlanner.Core.Contracts/README.md — DTOs and request/response shapes
+- src/TripPlanner.Core.Application/README.md — use-cases and ports
+- src/TripPlanner.Core.Validation/README.md — validators and conventions
+- src/TripPlanner.Wpf/README.md — WPF app quick start and MVVM patterns
+
+### Documentation
+- docs/UserGuide.md — end-user walkthrough (running API+WPF, common workflows)
+- docs/DeveloperGuide.md — architecture, local setup, migrations, testing
+
 
 ## Prerequisites
 - .NET SDK 9.0+
@@ -86,7 +99,15 @@ App settings are in src\TripPlanner.Api\appsettings.json and appsettings.Develop
 - Jwt: Issuer, Audience, Key — dev-only defaults included; set strong secrets for real deployments
 - Static uploads (destination images) are served from the API’s web root under /uploads
 
-Override settings via environment variables (Docker-friendly):
+WPF client settings (local runs):
+- src/TripPlanner.Wpf/appsettings.json → TripPlanner:BaseAddress controls which API the client calls. Default: http://localhost:5162
+- Refresh token persistence: encrypted per Windows user via DPAPI at %LOCALAPPDATA%\TripperApp\tokens.dat. Use in-app sign-out (if available) or delete this file to force sign-out.
+
+Client SDK base address options:
+- services.AddTripPlannerClient(opts => opts.BaseAddress = "http://localhost:5162");
+- Or for the WPF Destinations extension: IConfiguration["TripPlanner:BaseAddress"].
+
+Override API settings via environment variables (Docker-friendly):
 - ConnectionStrings__Default=Data Source=/app/data/tripplanner.db
 - ASPNETCORE_ENVIRONMENT=Development
 
