@@ -10,7 +10,6 @@ COPY src/TripPlanner.Core.Domain/TripPlanner.Core.Domain.csproj src/TripPlanner.
 COPY src/TripPlanner.Core.Contracts/TripPlanner.Core.Contracts.csproj src/TripPlanner.Core.Contracts/
 COPY src/TripPlanner.Core.Application/TripPlanner.Core.Application.csproj src/TripPlanner.Core.Application/
 COPY src/TripPlanner.Adapters.Persistence.Ef/TripPlanner.Adapters.Persistence.Ef.csproj src/TripPlanner.Adapters.Persistence.Ef/
-COPY src/TripPlanner.Adapters.Persistence.InMemory/TripPlanner.Adapters.Persistence.InMemory.csproj src/TripPlanner.Adapters.Persistence.InMemory/
 COPY src/TripPlanner.Core.Validation/TripPlanner.Core.Validation.csproj src/TripPlanner.Core.Validation/
 COPY src/TripPlanner.Client/TripPlanner.Client.csproj src/TripPlanner.Client/
 COPY src/TripPlanner.Api/TripPlanner.Api.csproj src/TripPlanner.Api/

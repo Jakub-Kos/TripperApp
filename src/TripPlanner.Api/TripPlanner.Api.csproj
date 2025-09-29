@@ -3,7 +3,6 @@
   <ItemGroup>
     <ProjectReference Include="..\TripPlanner.Core.Application\TripPlanner.Core.Application.csproj" />
     <ProjectReference Include="..\TripPlanner.Core.Contracts\TripPlanner.Core.Contracts.csproj" />
-    <ProjectReference Include="..\TripPlanner.Adapters.Persistence.InMemory\TripPlanner.Adapters.Persistence.InMemory.csproj" />
     <ProjectReference Include="..\TripPlanner.Adapters.Persistence.Ef\TripPlanner.Adapters.Persistence.Ef.csproj" />
     <ProjectReference Include="..\TripPlanner.Core.Validation\TripPlanner.Core.Validation.csproj" />
   </ItemGroup>

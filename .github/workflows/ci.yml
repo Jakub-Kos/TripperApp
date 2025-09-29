@@ -48,7 +48,6 @@ jobs:
           dotnet restore src/TripPlanner.Core.Contracts/TripPlanner.Core.Contracts.csproj
           dotnet restore src/TripPlanner.Core.Application/TripPlanner.Core.Application.csproj
           dotnet restore src/TripPlanner.Adapters.Persistence.Ef/TripPlanner.Adapters.Persistence.Ef.csproj
-          dotnet restore src/TripPlanner.Adapters.Persistence.InMemory/TripPlanner.Adapters.Persistence.InMemory.csproj
           dotnet restore src/TripPlanner.Core.Validation/TripPlanner.Core.Validation.csproj
           dotnet restore src/TripPlanner.Client/TripPlanner.Client.csproj
           dotnet restore src/TripPlanner.Api/TripPlanner.Api.csproj
@@ -65,7 +64,6 @@ jobs:
           dotnet build src/TripPlanner.Core.Contracts/TripPlanner.Core.Contracts.csproj -c $CONFIG --no-restore
           dotnet build src/TripPlanner.Core.Application/TripPlanner.Core.Application.csproj -c $CONFIG --no-restore
           dotnet build src/TripPlanner.Adapters.Persistence.Ef/TripPlanner.Adapters.Persistence.Ef.csproj -c $CONFIG --no-restore
-          dotnet build src/TripPlanner.Adapters.Persistence.InMemory/TripPlanner.Adapters.Persistence.InMemory.csproj -c $CONFIG --no-restore
           dotnet build src/TripPlanner.Core.Validation/TripPlanner.Core.Validation.csproj -c $CONFIG --no-restore
           dotnet build src/TripPlanner.Client/TripPlanner.Client.csproj -c $CONFIG --no-restore
           dotnet build src/TripPlanner.Api/TripPlanner.Api.csproj -c $CONFIG --no-restore

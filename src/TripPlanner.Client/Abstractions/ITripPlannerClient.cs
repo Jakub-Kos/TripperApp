@@ -9,8 +9,6 @@ namespace TripPlanner.Client.Abstractions;
 public interface ITripPlannerClient
 {
     Task<TripDto> CreateTripAsync(CreateTripRequest request, CancellationToken ct = default);
-
-    // New API: list my trips with optional finished filter
     Task<IReadOnlyList<TripDto>> ListMyTripsAsync(bool includeFinished = false, int skip = 0, int take = 50, CancellationToken ct = default);
 
     // Legacy/general list (kept for compatibility if needed)
