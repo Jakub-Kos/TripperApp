@@ -18,13 +18,30 @@ public static class DestinationEndpoints
     public static IEndpointRouteBuilder MapDestinationEndpoints(this IEndpointRouteBuilder v1)
     {
         v1.MapPost("/trips/{tripId:guid}/destinations/{destinationId:guid}/votes",
-                async (Guid tripId, Guid destinationId, System.Security.Claims.ClaimsPrincipal user, VoteDestinationHandler handler, CancellationToken ct) =>
+                async (Guid tripId, Guid destinationId, System.Security.Claims.ClaimsPrincipal user, AppDbContext db, CancellationToken ct) =>
                 {
                     var sub = user.FindFirst("sub")?.Value ?? user.FindFirst("nameid")?.Value;
                     if (!Guid.TryParse(sub, out var me)) return Results.Unauthorized();
 
-                    var ok = await handler.Handle(new VoteDestinationCommand(tripId.ToString("D"), destinationId.ToString("D"), me), ct);
-                    if (!ok) return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip or destination not found"));
+                    // Resolve participant for current user in this trip
+                    var participant = await db.Participants.FirstOrDefaultAsync(p => p.TripId == tripId && p.UserId == me, ct);
+                    if (participant is null)
+                    {
+                        // Not a participant → treat as not found to avoid information leak
+                        return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip or destination not found"));
+                    }
+
+                    // Ensure destination exists within the trip
+                    var destExists = await db.Destinations.AnyAsync(d => d.TripId == tripId && d.DestinationId == destinationId, ct);
+                    if (!destExists) return Results.NotFound(new ErrorResponse(ErrorCodes.NotFound, "Trip or destination not found"));
+
+                    // Idempotent add vote by (DestinationId, ParticipantId)
+                    var dup = await db.DestinationVotes.AnyAsync(v => v.DestinationId == destinationId && v.ParticipantId == participant.ParticipantId, ct);
+                    if (!dup)
+                    {
+                        db.DestinationVotes.Add(new DestinationVoteRecord { DestinationId = destinationId, ParticipantId = participant.ParticipantId });
+                        await db.SaveChangesAsync(ct);
+                    }
 
                     return Results.NoContent();
                 })
