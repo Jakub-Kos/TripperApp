@@ -22,6 +22,7 @@ public sealed partial class ParticipantsViewModel : ObservableObject
 
     // Organizer-only: invite code generation (back in UI)
     [ObservableProperty] private string _inviteCode = "";
+    [ObservableProperty] private string _newPlaceholderName = "";
 
     public async Task LoadAsync(string tripId)
     {
@@ -142,6 +143,17 @@ public sealed partial class ParticipantsViewModel : ObservableObject
         if (!IsOrganizerMe) return;
         var inv = await _client.CreateInviteAsync(TripId);
         if (inv.HasValue) InviteCode = inv.Value.code;
+    }
+    
+    [RelayCommand]
+    private async Task AddPlaceholderAsync()
+    {
+        if (!IsOrganizerMe) return;                       // organizer-only
+        if (string.IsNullOrWhiteSpace(NewPlaceholderName)) return;
+
+        await _client.CreatePlaceholderAsync(TripId, NewPlaceholderName.Trim());
+        NewPlaceholderName = "";
+        await LoadAsync(TripId);                          // refresh list
     }
 
     // -------- helpers (reflection tolerant) --------

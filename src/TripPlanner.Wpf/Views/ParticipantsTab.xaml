@@ -30,6 +30,11 @@
     <!-- Organizer-only: Invite generation -->
     <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8"
                 Visibility="{Binding IsOrganizerMe, Converter={StaticResource BoolToVis}}">
+      <TextBlock Text="New placeholder:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+      <TextBox Width="220" Text="{Binding NewPlaceholderName, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,0"/>
+      <Button Content="Add" Command="{Binding AddPlaceholderCommand}" />
+      <Separator Margin="12,0"/>
+      
       <TextBlock Text="Invite code:" VerticalAlignment="Center" Margin="0,0,8,0"/>
       <TextBox Width="220" IsReadOnly="True" Text="{Binding InviteCode}" Margin="0,0,8,0"/>
       <Button Content="Create invite" Command="{Binding CreateInviteCodeCommand}" />
