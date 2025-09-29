@@ -21,8 +21,7 @@ public partial class MainViewModel : ObservableObject
         DestinationsViewModel destinations,
         GearViewModel gear,
         ItineraryViewModel itinerary,
-        TransportationsViewModel transport,
-        InvitesViewModel invites)
+        TransportationsViewModel transport)
     {
         _client = client;
         Overview = overview;
@@ -32,7 +31,6 @@ public partial class MainViewModel : ObservableObject
         Gear = gear;
         Itinerary = itinerary;
         Transport = transport;
-        Invites = invites;
     }
 
     [ObservableProperty] private bool _busy;
@@ -53,7 +51,6 @@ public partial class MainViewModel : ObservableObject
     public GearViewModel Gear { get; }
     public ItineraryViewModel Itinerary { get; }
     public TransportationsViewModel Transport { get; }
-    public InvitesViewModel Invites { get; }
 
     public async Task InitializeAsync() => await LoadTripsInternal();
 
@@ -133,7 +130,6 @@ public partial class MainViewModel : ObservableObject
             await Gear.LoadAsync(tripId);
             await Itinerary.LoadAsync(tripId);
             await Transport.LoadAsync(tripId);
-            await Invites.LoadAsync(tripId);
 
             Status = "Ready.";
         }

@@ -46,7 +46,6 @@ public partial class App : Application
                 services.AddSingleton<GearViewModel>();
                 services.AddSingleton<ItineraryViewModel>();
                 services.AddSingleton<TransportationsViewModel>();
-                services.AddSingleton<InvitesViewModel>();
                 services.AddTransient<LoginViewModel>();
 
                 // Windows

@@ -29,9 +29,6 @@
     <DataTemplate DataType="{x:Type vm:TransportationsViewModel}">
       <views:TransportationsTab />
     </DataTemplate>
-    <DataTemplate DataType="{x:Type vm:InvitesViewModel}">
-      <views:InvitesTab />
-    </DataTemplate>
   </Window.Resources>
   <DockPanel>
     <Menu DockPanel.Dock="Top">
@@ -99,9 +96,6 @@
         </TabItem>
         <TabItem Header="Transport">
           <ContentControl Content="{Binding Transport}" />
-        </TabItem>
-        <TabItem Header="Invites">
-          <ContentControl Content="{Binding Invites}" />
         </TabItem>
       </TabControl>
 
