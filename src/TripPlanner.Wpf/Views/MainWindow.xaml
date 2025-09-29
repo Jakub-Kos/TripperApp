@@ -91,9 +91,9 @@
         <TabItem Header="Gear">
           <ContentControl Content="{Binding Gear}" />
         </TabItem>
-        <TabItem Header="Itinerary">
-          <ContentControl Content="{Binding Itinerary}" />
-        </TabItem>
+        <!-- <TabItem Header="Itinerary"> -->
+        <!--   <ContentControl Content="{Binding Itinerary}" /> -->
+        <!-- </TabItem> -->
         <TabItem Header="Transport">
           <ContentControl Content="{Binding Transport}" />
         </TabItem>
