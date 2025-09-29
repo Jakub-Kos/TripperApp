@@ -37,3 +37,21 @@ Thumbs.db
 # Local files you generated
 project-files.txt
 /src/TripPlanner.Api/wwwroot/
+/tools/check-auth.ps1
+/tools/check-wpf-auth.ps1
+/tools/check-wpf-destinations.ps1
+/src/TripPlanner.Adapters.Persistence.Ef/packages.lock.json
+/src/TripPlanner.Adapters.Persistence.InMemory/packages.lock.json
+/src/TripPlanner.Api/packages.lock.json
+/src/TripPlanner.Client/packages.lock.json
+/src/TripPlanner.Core.Application/packages.lock.json
+/src/TripPlanner.Core.Contracts/packages.lock.json
+/src/TripPlanner.Core.Domain/packages.lock.json
+/src/TripPlanner.Core.Validation/packages.lock.json
+/src/TripPlanner.Wpf/packages.lock.json
+/tests/TripPlanner.Tests.Domain/packages.lock.json
+/tests/TripPlanner.Tests.Integration/packages.lock.json
+/tools/print-structure.ps1
+/tools/smoke-api.ps1
+/tools/smoke-auth.ps1
+/tools/test-dest-api.ps1
